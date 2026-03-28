@@ -1,0 +1,33 @@
+{
+  "name": "telegramdeck",
+  "version": "1.0.0",
+  "description": "TweetDeck-style Telegram client using MTProto",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "nodemon server/index.js",
+    "auth": "node server/auth.js",
+    "icons": "node scripts/gen-icons.js",
+    "postinstall": "node scripts/relax-gramjs-ping.js"
+  },
+  "dependencies": {
+    "big-integer": "^1.6.52",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.5.0",
+    "express-session": "^1.17.3",
+    "helmet": "^8.0.0",
+    "input": "^1.0.1",
+    "node-fetch": "^2.7.0",
+    "telegram": "^2.25.15",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0",
+    "sharp": "^0.34.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

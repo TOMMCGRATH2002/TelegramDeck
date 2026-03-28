@@ -1,0 +1,6 @@
+# Example Caddy v2 — copy to /etc/caddy/Caddyfile or use `caddy run --config Caddyfile`
+# Replace deck.example.com and ensure DNS points to this server.
+
+deck.example.com {
+    reverse_proxy 127.0.0.1:3000
+}

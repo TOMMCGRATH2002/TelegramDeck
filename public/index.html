@@ -1,0 +1,1533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TelegramDeck</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0a0a0b">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0a0a0b;--bg2:#0f0f10;--bg3:#18181a;--bg4:#2a2a2d;
+    --border:#2a2a2e;--border2:#3d3d42;
+    --text:#f0f2f4;--text2:#9aa0a6;--text3:#6b7280;
+    --accent:#1da1f2;--accent2:#1a8cd8;--accent-glow:rgba(29,161,242,0.18);
+    --danger:#f4212e;--success:#17bf63;--warn:#ffad1f;
+    --sidebar-w:56px;--sidebar-expanded:200px;
+    --col-min:280px;--radius:0;--radius-sm:4px;
+    --shadow:none;
+    --transition:0.15s ease;
+  }
+  .light {
+    --bg:#f5f8fa;--bg2:#ffffff;--bg3:#e6ecf0;--bg4:#ccd6dd;
+    --border:#e1e8ed;--border2:#ccd6dd;
+    --text:#14171a;--text2:#657786;--text3:#8899a6;
+    --accent-glow:rgba(29,161,242,0.12);--shadow:none;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;height:100vh;overflow:hidden;transition:background var(--transition),color var(--transition);}
+  .app-frame{display:flex;flex:1;min-height:0;min-width:0;width:100%;align-items:stretch;}
+
+  /* ── SIDEBAR ── */
+  #sidebar{width:var(--sidebar-w);min-width:var(--sidebar-w);background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:2px;transition:width var(--transition),min-width var(--transition);position:relative;z-index:101;overflow-x:hidden;overflow-y:auto;flex-shrink:0;}
+  #sidebar:not(.expanded){align-items:center;}
+  #sidebar:not(.expanded) .sb-logo-btn,
+  #sidebar:not(.expanded) .sb-btn,
+  #sidebar:not(.expanded) .expand-btn{margin-left:auto;margin-right:auto;}
+  #sidebar:not(.expanded) .sb-btn{width:44px!important;min-width:44px!important;max-width:44px!important;padding-left:0!important;padding-right:0!important;justify-content:center!important;gap:0!important;}
+  #sidebar:not(.expanded) .sb-logo-btn{width:44px!important;min-width:44px!important;max-width:44px!important;}
+  #sidebar.expanded{width:var(--sidebar-expanded);min-width:var(--sidebar-expanded);align-items:stretch;padding:10px 8px;}
+  .sb-vsep{width:26px;height:1px;background:var(--border);margin:5px 0;flex-shrink:0;opacity:0.9;align-self:center;}
+  #sidebar.expanded .sb-vsep{width:calc(100% - 16px);max-width:100%;margin:6px 8px;align-self:center;}
+  .sb-btn{width:44px;height:44px;border-radius:12px;border:none;background:transparent;color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;font-family:'Outfit',sans-serif;font-size:13px;font-weight:500;transition:background var(--transition),color var(--transition),transform 0.15s;flex-shrink:0;white-space:nowrap;overflow:hidden;}
+  .sb-btn:hover{background:var(--bg3);color:var(--text);}
+  .sb-btn.active{background:var(--accent-glow);color:var(--accent);}
+  .sb-btn:active{transform:scale(0.94);}
+  .sb-btn .btn-label{opacity:0;width:0;transition:opacity var(--transition),width var(--transition);}
+  #sidebar.expanded .sb-btn{width:100%;padding:0 8px;justify-content:center;}
+  #sidebar.expanded .sb-btn .btn-label{opacity:1;width:auto;}
+  .sb-logo-btn{width:44px;height:44px;padding:0;background:transparent;border-radius:12px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:transform 0.2s;flex-shrink:0;margin-bottom:8px;overflow:hidden;}
+  #sidebar.expanded .sb-logo-btn{width:100%;padding:0 8px;overflow:visible;}
+  .sb-logo-btn:hover{transform:scale(1.04);background:transparent;box-shadow:none;}
+  .sb-logo-btn:hover .sb-logo-img{filter:brightness(1.1);}
+  .sb-logo-thumb{flex-shrink:0;border-radius:12px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:transparent;min-width:0;}
+  #sidebar:not(.expanded) .sb-logo-thumb{flex:1 1 auto;width:100%;height:100%;}
+  #sidebar:not(.expanded) .sb-logo-label{flex:0 0 0;min-width:0;padding:0;margin:0;}
+  #sidebar.expanded .sb-logo-thumb{width:44px;height:44px;min-width:44px;}
+  .sb-logo-img{width:100%;height:100%;object-fit:cover;object-position:center;transform:scale(1.38);display:block;pointer-events:none;border-radius:0;}
+  .sb-logo-label{opacity:0;width:0;overflow:hidden;white-space:nowrap;font-weight:700;font-size:15px;color:var(--text);transition:opacity var(--transition),width var(--transition);}
+  #sidebar.expanded .sb-logo-label{opacity:1;width:auto;}
+  .sb-spacer{flex:1;min-height:0;}
+  #sidebar:not(.expanded) .sb-spacer{align-self:stretch;width:100%;}
+  .sb-divider{width:32px;height:1px;background:var(--border);margin:4px auto;transition:width var(--transition);}
+  #sidebar.expanded .sb-divider{width:100%;}
+  .sb-bottom{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;flex-shrink:0;}
+  #sidebar:not(.expanded) .sb-bottom{align-items:center;}
+  #sidebar:not(.expanded) .sb-bottom .sb-btn{width:44px!important;min-width:44px!important;max-width:44px!important;padding-left:0!important;padding-right:0!important;gap:0!important;justify-content:center!important;}
+  #sidebar.expanded .sb-bottom{align-items:stretch;}
+  .expand-btn{width:44px;height:32px;background:transparent;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text3);border-radius:8px;transition:color var(--transition),background var(--transition);margin:0 auto 4px;flex-shrink:0;}
+  #sidebar.expanded .expand-btn{margin:0 10px 4px;width:auto;min-width:44px;align-self:stretch;}
+  #sidebar:not(.expanded) .expand-btn{margin-left:auto;margin-right:auto;}
+  .expand-btn:hover{color:var(--text);background:var(--bg3);}
+  .expand-btn svg{transition:transform var(--transition);}
+  #sidebar.expanded .expand-btn svg{transform:scaleX(-1);}
+
+  /* ── SIDE DRAWER (feature panels) ── */
+  .feature-drawer{--drawer-w:clamp(280px,36vw,480px);width:0;min-height:0;flex-shrink:0;overflow:hidden;background:var(--bg2);border-right:none;display:flex;flex-direction:column;transition:width 0.22s cubic-bezier(0.4,0,0.2,1);z-index:100;}
+  .feature-drawer.open{width:var(--drawer-w);border-right:1px solid var(--border);}
+  .drawer-scroll{width:var(--drawer-w);min-width:var(--drawer-w);height:100%;max-height:100%;overflow-x:hidden;overflow-y:auto;padding:16px 18px 24px;box-sizing:border-box;}
+  .panel-sheet{display:none;}
+  .panel-sheet.active{display:block;animation:drawerIn 0.2s ease;}
+  @keyframes drawerIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+  .panel{background:transparent;border:none;border-radius:0;box-shadow:none;padding:0;width:100%;max-width:100%;max-height:none;overflow:visible;}
+  .panel h2{font-size:17px;font-weight:600;margin-bottom:16px;}
+  .panel-close{float:right;background:none;border:none;color:var(--text2);cursor:pointer;font-size:20px;line-height:1;padding:4px 6px;border-radius:4px;}
+  .panel-close:hover{color:var(--text);background:var(--bg3);}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12px;color:var(--text2);margin-bottom:5px;font-weight:500;text-transform:uppercase;letter-spacing:0.04em;}
+  .field input,.field select{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);font-family:'Outfit',sans-serif;font-size:14px;padding:9px 12px;outline:none;transition:border-color var(--transition);}
+  .field input:focus,.field select:focus{border-color:var(--accent);}
+  .field select option{background:var(--bg3);}
+  .btn-primary{background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);padding:10px 18px;font-family:'Outfit',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:background var(--transition),transform 0.12s;}
+  .btn-primary:hover{background:var(--accent2);}
+  .btn-primary:active{transform:scale(0.97);}
+  .btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:9px 16px;font-family:'Outfit',sans-serif;font-size:14px;cursor:pointer;transition:background var(--transition),color var(--transition);}
+  .btn-ghost:hover{background:var(--bg3);color:var(--text);}
+  .btn-danger{background:rgba(248,81,73,0.12);color:var(--danger);border:1px solid rgba(248,81,73,0.3);border-radius:var(--radius-sm);padding:9px 16px;font-family:'Outfit',sans-serif;font-size:14px;cursor:pointer;transition:background var(--transition);}
+  .btn-danger:hover{background:rgba(248,81,73,0.22);}
+  .row-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:4px;}
+  .choice-group{display:flex;gap:8px;margin-bottom:14px;}
+  .choice-pill{flex:1;padding:9px;text-align:center;border:1px solid var(--border2);border-radius:var(--radius-sm);cursor:pointer;font-size:13px;color:var(--text2);background:var(--bg3);transition:all var(--transition);user-select:none;}
+  .choice-pill.selected{border-color:var(--accent);color:var(--accent);background:var(--accent-glow);}
+  .list-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-sm);cursor:pointer;transition:background var(--transition);}
+  .list-item:hover{background:var(--bg3);}
+  .li-icon{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;background:var(--bg4);color:var(--text2);}
+  .li-text{flex:1;}
+  .li-name{font-size:14px;font-weight:500;}
+  .li-sub{font-size:12px;color:var(--text2);}
+  .li-actions{display:flex;gap:4px;}
+  .icon-btn{width:30px;height:30px;border:none;background:transparent;border-radius:6px;color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background var(--transition),color var(--transition);}
+  .icon-btn:hover{background:var(--bg4);color:var(--text);}
+  .icon-btn.danger:hover{background:rgba(248,81,73,0.15);color:var(--danger);}
+  .avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:#fff;flex-shrink:0;}
+  .avatar-photo-wrap{position:relative;overflow:hidden;padding:0;}
+  .avatar-photo-wrap .avatar-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;z-index:1;}
+  .avatar-photo-wrap .avatar-initials{position:relative;z-index:0;display:flex;align-items:center;justify-content:center;width:100%;height:100%;}
+  .avatar-photo-wrap .avatar-photo:not(.avatar-photo--err)~.avatar-initials{opacity:0;}
+  .avatar-photo--err{display:none!important;}
+  .avatar-photo-wrap .avatar-initials{pointer-events:none;}
+  .badge{font-size:10px;font-weight:600;padding:2px 6px;border-radius:20px;letter-spacing:0.03em;}
+  .badge-blue{background:var(--accent-glow);color:var(--accent);}
+  .badge-green{background:rgba(63,185,80,0.15);color:var(--success);}
+  .section-hdr{font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text3);padding:12px 0 6px;font-weight:600;}
+  .sep{height:1px;background:var(--border);margin:10px 0;}
+  .deck-col-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--radius-sm);margin-bottom:4px;background:var(--bg3);border:1px solid var(--border);}
+  .deck-col-item .dci-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;}
+  .deck-col-item .dci-label{flex:1;font-size:13px;font-weight:500;}
+  .dci-add-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  .dci-add-chip{display:flex;align-items:center;gap:6px;padding:7px 12px;border:1px dashed var(--border2);border-radius:8px;font-size:13px;color:var(--text2);cursor:pointer;transition:background var(--transition),color var(--transition),border-color var(--transition);}
+  .dci-add-chip:hover{background:var(--accent-glow);color:var(--accent);border-color:rgba(42,171,238,0.4);}
+  .profile-card{background:var(--bg3);border-radius:var(--radius);padding:20px;margin-bottom:16px;text-align:center;}
+  .profile-avatar{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#1a8fd1);display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;color:#fff;margin:0 auto 12px;position:relative;overflow:hidden;}
+  .profile-avatar .profile-avatar-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+  .profile-name{font-size:16px;font-weight:600;}
+  .profile-handle{font-size:13px;color:var(--text2);font-family:'JetBrains Mono',monospace;}
+  .profile-detail{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--text2);}
+  .profile-detail:last-child{border-bottom:none;}
+  .profile-detail strong{color:var(--text);}
+  .panel::-webkit-scrollbar{width:4px;}
+  .panel::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px;}
+
+  /* ── MAIN / COLUMNS ── */
+  #main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;min-height:0;background:var(--bg);}
+  #columns-wrap{flex:1;display:flex;overflow-x:auto;overflow-y:hidden;padding:0;gap:0;scrollbar-width:thin;scrollbar-color:var(--bg4) transparent;min-width:0;width:100%;align-items:stretch;}
+  #columns-wrap::-webkit-scrollbar{height:8px;}
+  #columns-wrap::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:0;}
+  .col{flex:1 1 0;min-width:min(var(--col-min),100%);max-width:none;background:var(--bg);border:none;border-left:1px solid var(--border);border-radius:0;display:flex;flex-direction:column;overflow:hidden;transition:opacity 0.2s;}
+  .col:first-child{border-left:none;}
+  .col.dragging{opacity:0.5;}
+  .col.drag-over{outline:2px solid var(--accent);outline-offset:-2px;}
+  .col-header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);cursor:grab;user-select:none;flex-shrink:0;background:var(--bg2);}
+  .col-header:active{cursor:grabbing;}
+  .col-icon{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;position:relative;overflow:hidden;flex-shrink:0;color:var(--text3);}
+  .col-icon .col-drag-grip{display:block;}
+  .col-icon .col-icon-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+  .col-icon .col-icon-fallback{position:relative;z-index:0;font-weight:700;font-size:12px;}
+  .col-icon .col-icon-img:not(.col-icon-img--err)~.col-icon-fallback{opacity:0;}
+  .col-icon-img--err{display:none!important;}
+  .dci-icon-avatar{position:relative;overflow:hidden;padding:0;}
+  .dci-icon-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+  .dci-icon-avatar .dci-fallback{position:relative;z-index:0;display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-weight:700;font-size:11px;}
+  .dci-icon-avatar img:not(.dci-img--err)~.dci-fallback{opacity:0;}
+  .dci-img--err{display:none!important;}
+  .col-title-wrap{flex:1;min-width:0;}
+  .col-title{font-weight:700;font-size:13px;letter-spacing:0.02em;text-transform:uppercase;color:var(--text2);}
+  .col-subtitle{display:none;}
+  .col-close{width:24px;height:24px;border:none;background:transparent;color:var(--text3);cursor:pointer;border-radius:4px;display:flex;align-items:center;justify-content:center;transition:color var(--transition),background var(--transition);}
+  .col-close:hover{color:var(--danger);background:rgba(248,81,73,0.1);}
+  .col-body{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--bg4) transparent;}
+  .col-body::-webkit-scrollbar{width:4px;}
+  .col-body::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px;}
+
+  /* ── POST CARD ── */
+  .post-card{padding:12px 12px 10px;border-bottom:1px solid var(--border);transition:background var(--transition);animation:postIn 0.28s ease;}
+  .post-card:hover{background:var(--bg3);}
+  .post-card:last-child{border-bottom:none;}
+  @keyframes postIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+  .post-header{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  .post-info{flex:1;min-width:0;}
+  .post-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .post-handle{font-size:11px;color:var(--text2);font-family:'JetBrains Mono',monospace;}
+  .post-time{font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace;white-space:nowrap;}
+  .post-text{font-size:13px;line-height:1.55;color:var(--text);word-break:break-word;}
+  .translation-block{margin-top:6px;padding-top:6px;border-top:1px solid var(--border);}
+  .original-text{font-size:11px;color:var(--text3);margin-bottom:4px;font-style:italic;}
+  .translate-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;color:var(--text2);margin-top:4px;}
+  .post-media{margin-top:8px;color:var(--text3);font-size:12px;}
+  .post-media-grid{display:flex;flex-direction:column;gap:6px;}
+  .post-media-placeholder{height:72px;display:flex;align-items:center;justify-content:center;gap:6px;background:var(--bg3);border:1px solid var(--border);}
+  .post-media-img{width:100%;max-height:360px;object-fit:contain;display:block;background:var(--bg3);border:1px solid var(--border);}
+  .post-media-video{width:100%;max-height:360px;background:#000;border:1px solid var(--border);}
+  .post-stats{display:flex;gap:14px;margin-top:8px;}
+  .post-stat{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;}
+  .new-posts-btn{display:none;width:calc(100% - 16px);margin:6px 8px 0;padding:7px;background:var(--accent-glow);border:1px solid rgba(42,171,238,0.3);border-radius:8px;color:var(--accent);font-size:12px;font-weight:600;text-align:center;cursor:pointer;}
+  .new-posts-btn.visible{display:block;animation:slideDown 0.2s ease;}
+  @keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+  .empty-state{padding:40px 20px;text-align:center;color:var(--text3);}
+  .empty-state svg{margin-bottom:12px;opacity:0.4;}
+  .empty-state p{font-size:13px;line-height:1.5;}
+  .loading-state{padding:20px;display:flex;flex-direction:column;gap:10px;}
+  .skeleton{height:80px;background:linear-gradient(90deg,var(--bg3) 25%,var(--bg4) 50%,var(--bg3) 75%);background-size:200% 100%;border-radius:8px;animation:shimmer 1.4s infinite;}
+  @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+  /* ── Mobile / tablet: top bar + full-screen drawer ── */
+  @media (max-width:900px){
+    :root{--mobile-topbar-h:52px;}
+    .app-frame{flex-direction:column;}
+    #sidebar{
+      width:100%!important;min-width:0!important;max-height:none;
+      flex-direction:row;flex-wrap:nowrap;align-items:center;justify-content:flex-start;
+      gap:2px;padding:6px 8px;
+      padding-left:max(8px,env(safe-area-inset-left));
+      padding-right:max(8px,env(safe-area-inset-right));
+      padding-top:max(6px,env(safe-area-inset-top));
+      overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;
+      scrollbar-width:none;border-right:none;border-bottom:1px solid var(--border);
+      flex-shrink:0;min-height:var(--mobile-topbar-h);
+    }
+    #sidebar::-webkit-scrollbar{display:none;width:0;height:0;}
+    #sidebar.expanded{width:100%!important;min-width:0!important;align-items:center;}
+    .sb-spacer,.sb-divider,.sb-vsep{display:none!important;}
+    .sb-bottom{flex-direction:row;margin-left:auto;flex-shrink:0;width:auto;gap:0;align-items:center;}
+    .expand-btn{display:none!important;}
+    .sb-logo-btn{
+      margin-bottom:0;margin-right:2px;background:transparent;
+      box-shadow:none;width:44px!important;min-width:44px!important;max-width:44px!important;
+      overflow:hidden;
+    }
+    .sb-logo-btn:hover{transform:none;box-shadow:none;}
+    .sb-logo-btn:hover .sb-logo-img{filter:none;}
+    #sidebar.expanded .sb-logo-btn{width:44px!important;min-width:44px!important;max-width:44px!important;padding:0;justify-content:center;}
+    #sidebar .sb-btn{
+      width:44px!important;min-width:44px!important;max-width:44px!important;
+      padding-left:0!important;padding-right:0!important;justify-content:center!important;gap:0!important;
+    }
+    #sidebar.expanded .sb-btn .btn-label,
+    #sidebar.expanded .sb-logo-label{
+      opacity:0!important;width:0!important;overflow:hidden!important;padding:0!important;margin:0!important;border:0!important;
+    }
+    .feature-drawer{
+      position:fixed;inset:0;width:100%!important;max-width:100%!important;min-height:0;
+      z-index:200;transform:translateX(-105%);transition:transform 0.25s cubic-bezier(0.4,0,0.2,1);
+      border-right:none;pointer-events:none;background:var(--bg2);
+    }
+    .feature-drawer.open{
+      transform:translateX(0);pointer-events:auto;
+      box-shadow:0 0 0 1px var(--border);
+    }
+    .drawer-scroll{
+      width:100%!important;min-width:0!important;max-width:100%!important;
+      padding:max(16px,env(safe-area-inset-top)) max(18px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left));
+    }
+    #main{flex:1;min-height:0;min-width:0;}
+    #columns-wrap{padding-bottom:env(safe-area-inset-bottom);}
+    .post-media-img,.post-media-video{max-height:min(360px,55vh);}
+    .col-body{-webkit-overflow-scrolling:touch;}
+  }
+</style>
+</head>
+<body>
+<div class="app-frame">
+
+<!-- ── SIDEBAR ── -->
+<nav id="sidebar">
+  <button class="sb-logo-btn" onclick="location.reload()" title="TelegramDeck — refresh" type="button">
+    <span class="sb-logo-thumb" aria-hidden="true"><img class="sb-logo-img" src="/logo.png" alt="" decoding="async"/></span>
+    <span class="sb-logo-label">TelegramDeck</span>
+  </button>
+
+  <button class="sb-btn" id="btn-account" onclick="openPanel('panel-account')">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.582-7 8-7s8 3 8 7"/></svg>
+    <span class="btn-label">Account</span>
+  </button>
+  <button class="sb-btn" id="btn-deck" onclick="openPanel('panel-deck')">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="5" height="18" rx="1"/><rect x="9.5" y="3" width="5" height="18" rx="1"/><rect x="17" y="3" width="5" height="18" rx="1"/></svg>
+    <span class="btn-label">Deck</span>
+  </button>
+  <div class="sb-vsep" aria-hidden="true"></div>
+  <button class="sb-btn" id="btn-add" onclick="openPanel('panel-add')">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+    <span class="btn-label">Add Account</span>
+  </button>
+  <button class="sb-btn" id="btn-lists" onclick="openPanel('panel-lists')">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="6" height="6" rx="1"/><rect x="3" y="13" width="6" height="6" rx="1"/><line x1="13" y1="7" x2="21" y2="7"/><line x1="13" y1="15" x2="21" y2="15"/><line x1="13" y1="11" x2="18" y2="11"/><line x1="13" y1="19" x2="18" y2="19"/></svg>
+    <span class="btn-label">Lists</span>
+  </button>
+  <button class="sb-btn" id="btn-following" onclick="openPanel('panel-following')">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><path d="M2 20c0-3.5 3.1-6 7-6s7 2.5 7 6"/><path d="M16 11l2 2 4-4"/></svg>
+    <span class="btn-label">Following</span>
+  </button>
+  <div class="sb-vsep" aria-hidden="true"></div>
+  <button class="sb-btn" id="btn-translate" onclick="toggleTranslate()">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12.87 15.07l-2.54-2.51.03-.03A17.52 17.52 0 0014.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg>
+    <span class="btn-label">Auto-translate</span>
+  </button>
+
+  <div class="sb-spacer"></div>
+  <div class="sb-divider"></div>
+  <div class="sb-bottom">
+    <button class="sb-btn" id="btn-popout" onclick="openPopout()" title="Open in pop-out window">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+      <span class="btn-label">Pop out</span>
+    </button>
+    <button class="sb-btn" id="btn-theme" type="button" onclick="toggleTheme()" title="Toggle light / dark">
+      <svg id="icon-theme-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <svg id="icon-theme-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      <span class="btn-label">Theme</span>
+    </button>
+    <button class="expand-btn" onclick="toggleSidebar()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
+  </div>
+</nav>
+
+<!-- ── FEATURE DRAWER ── -->
+<aside id="feature-drawer" class="feature-drawer" aria-hidden="true">
+  <div class="drawer-scroll">
+
+<!-- ACCOUNT -->
+<div class="panel-sheet" id="panel-account" hidden>
+  <div class="panel">
+    <button class="panel-close" onclick="closePanel('panel-account')">✕</button>
+    <h2>Account</h2>
+    <div class="section-hdr" style="padding-top:0">Telegram users</div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.45"><strong>Lists</strong> (and accounts inside them) are <strong>shared</strong> for everyone on this server. Each Telegram user has their own <strong>Following</strong> and <strong>Deck</strong> columns.</p>
+    <div id="profiles-switcher" style="margin-bottom:14px"></div>
+    <div class="section-hdr">Add Telegram user</div>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:8px">Run <code style="font-size:11px;background:var(--bg3);padding:2px 6px;border-radius:4px">npm run auth</code> and paste the session string here.</p>
+    <div class="field" style="margin-bottom:8px"><label>Label (optional)</label><input id="inp-profile-label" placeholder="e.g. @myname"></div>
+    <div class="field" style="margin-bottom:8px"><label>Session string</label><textarea id="inp-profile-session" rows="3" style="resize:vertical;min-height:64px;font-family:'JetBrains Mono',monospace;font-size:11px" placeholder="Long string starting with 1AgA…"></textarea></div>
+    <button class="btn-primary" type="button" onclick="addTelegramProfile()" style="width:100%;margin-bottom:14px">Add user</button>
+    <div class="sep"></div>
+    <div class="profile-card">
+      <div class="profile-avatar" id="pa-avatar">
+        <img class="profile-avatar-img" id="pa-avatar-img" alt="" decoding="async"/>
+        <span id="pa-letter">?</span>
+      </div>
+      <div class="profile-name" id="pa-name">Loading…</div>
+      <div class="profile-handle" id="pa-handle">@—</div>
+    </div>
+    <div class="profile-detail"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.72 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.63 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.64a16 16 0 0 0 6 6l.96-1.21a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21.7 16z"/></svg><span id="pa-phone">—</span></div>
+    <div class="profile-detail"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>App version: <strong>TelegramDeck v1.0.0</strong></div>
+    <div class="profile-detail"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20a6 6 0 0 0-12 0"/><circle cx="12" cy="10" r="4"/></svg>MTProto: <strong><span id="pa-status" style="color:var(--warn)">●</span> Connecting…</strong></div>
+    <div style="margin-top:16px" class="row-btns">
+      <button class="btn-danger" type="button" onclick="removeActiveTelegramUser()">Remove this user…</button>
+      <button class="btn-primary" onclick="closePanel('panel-account')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- DECK -->
+<div class="panel-sheet" id="panel-deck" hidden>
+  <div class="panel">
+    <button class="panel-close" onclick="closePanel('panel-deck')">✕</button>
+    <h2>Deck Columns</h2>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:14px">Manage your columns. Drag column headers to reorder.</p>
+    <div class="section-hdr">Active Columns</div>
+    <div id="deck-active-cols"></div>
+    <div class="section-hdr" style="margin-top:8px">Add Column</div>
+    <div class="dci-add-row" id="deck-add-row"></div>
+  </div>
+</div>
+
+<!-- ADD ACCOUNT -->
+<div class="panel-sheet" id="panel-add" hidden>
+  <div class="panel">
+    <button class="panel-close" onclick="closePanel('panel-add')">✕</button>
+    <h2>Add Account</h2>
+    <div class="field">
+      <label>Telegram Username or Channel</label>
+      <input id="inp-add-handle" placeholder="e.g. @bbcnews or t.me/bbcnews" oninput="previewHandle()">
+    </div>
+    <div id="add-preview" style="display:none;margin-bottom:12px"></div>
+    <div class="field"><label>Add to</label></div>
+    <div class="choice-group">
+      <div class="choice-pill selected" id="pill-me" onclick="selectAddMode('me')">Just for me</div>
+      <div class="choice-pill" id="pill-list" onclick="selectAddMode('list')">Add to a List</div>
+    </div>
+    <div id="add-list-select" style="display:none">
+      <div class="field"><label>Choose list</label><select id="sel-add-list"></select></div>
+    </div>
+    <div class="row-btns">
+      <button class="btn-ghost" onclick="closePanel('panel-add')">Cancel</button>
+      <button class="btn-primary" id="btn-add-submit" onclick="addAccountSubmit()">Add Account</button>
+    </div>
+  </div>
+</div>
+
+<!-- LISTS -->
+<div class="panel-sheet" id="panel-lists" hidden>
+  <div class="panel">
+    <button class="panel-close" onclick="closePanel('panel-lists')">✕</button>
+    <h2>Lists</h2>
+    <div id="lists-container"></div>
+    <div class="sep"></div>
+    <div class="section-hdr">Create new list</div>
+    <div class="field" style="margin-bottom:0"><label>List name</label><input id="inp-new-list" placeholder="e.g. Tech News"></div>
+    <div class="row-btns" style="margin-top:10px">
+      <button class="btn-primary" onclick="createList()">Create List</button>
+    </div>
+  </div>
+</div>
+
+<!-- LIST DETAIL -->
+<div class="panel-sheet" id="panel-list-detail" hidden>
+  <div class="panel">
+    <button class="panel-close" onclick="closePanel('panel-list-detail')">✕</button>
+    <h2 id="list-detail-title"></h2>
+    <div id="list-detail-accounts"></div>
+  </div>
+</div>
+
+<!-- FOLLOWING -->
+<div class="panel-sheet" id="panel-following" hidden>
+  <div class="panel">
+    <button class="panel-close" onclick="closePanel('panel-following')">✕</button>
+    <h2>Following</h2>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:14px">Accounts you follow individually (not via a list).</p>
+    <div id="following-container"></div>
+  </div>
+</div>
+
+  </div>
+</aside>
+
+<!-- ── MAIN ── -->
+<div id="main">
+  <div id="columns-wrap" ondragover="onDragOver(event)" ondrop="onDrop(event)"></div>
+</div>
+</div><!-- .app-frame -->
+
+<script>
+// ══════════════════════════════════════════════════════════
+//  CONFIG
+// ══════════════════════════════════════════════════════════
+const API = '/api';
+const THREE_DAYS = 3 * 24 * 60 * 60 * 1000;
+const AVATAR_COLORS = ['#2aabee','#e86b5f','#3fb950','#e3b341','#a371f7','#ec7ab5','#f7a041','#58a6ff'];
+
+// ══════════════════════════════════════════════════════════
+//  STATE (mirrors server, fetched on load)
+// ══════════════════════════════════════════════════════════
+let columns         = [];
+let lists           = [];
+let following       = [];
+let settings        = { autoTranslate: false, darkMode: true, sidebarExpanded: false };
+let meProfile       = null;
+let dragColId       = null;
+let addMode         = 'me';
+let ws              = null;
+let wsConnected     = false;
+// entity info cache: handle -> { name, handle, color }
+let entityCache     = {};
+// pending live messages buffered per column while user is scrolled
+let pendingLive     = {}; // colId -> count
+let wsPingTimer     = null;
+let columnPollTimer = null;
+let videoIo         = null;
+let profilesList    = [];
+let activeProfileId = null;
+let wsGen           = 0;
+let wsReconnectTimer = null;
+
+// ══════════════════════════════════════════════════════════
+//  BOOT
+// ══════════════════════════════════════════════════════════
+async function boot() {
+  let sess = { ok: false, profiles: [], activeProfileId: null };
+  try {
+    const r = await fetch(API + '/session', { credentials: 'include' });
+    sess = await r.json();
+  } catch (_) {}
+  profilesList = sess.profiles || [];
+  activeProfileId = sess.activeProfileId || null;
+
+  if (!profilesList.length) {
+    document.getElementById('columns-wrap').innerHTML = '<div class="empty-state" style="padding:48px 24px;max-width:420px;margin:0 auto"><p style="font-size:15px;font-weight:600;margin-bottom:8px">Add a Telegram user</p><p style="font-size:13px;color:var(--text2);line-height:1.5">Open <strong>Account</strong> from the menu, paste a session string from <code style="font-size:11px">npm run auth</code>, then click <strong>Add user</strong>. Lists are shared; each user keeps their own follows and deck.</p></div>';
+    openPanel('panel-account');
+    renderProfilesSwitcher();
+    return;
+  }
+
+  await loadDeckStateForActiveProfile();
+  adjustPopoutChrome();
+  renderAllColumns();
+  connectWebSocket();
+  startRelativeTimeTicker();
+  startColumnPolling();
+}
+
+async function loadDeckStateForActiveProfile() {
+  try {
+    const s = await apiFetch('/settings');
+    settings = s.settings;
+  } catch (_) { settings = { autoTranslate: false, darkMode: true, sidebarExpanded: false }; }
+
+  darkMode = settings.darkMode !== false;
+  if (!darkMode) document.body.classList.add('light');
+  else document.body.classList.remove('light');
+  syncThemeBtn();
+  document.getElementById('btn-translate').classList.toggle('active', settings.autoTranslate);
+  if (settings.sidebarExpanded) { sidebarExpanded = true; document.getElementById('sidebar').classList.add('expanded'); }
+  else { sidebarExpanded = false; document.getElementById('sidebar').classList.remove('expanded'); }
+
+  const [listsRes, followingRes, columnsRes] = await Promise.all([
+    apiFetch('/lists').catch(() => ({ lists: [] })),
+    apiFetch('/following').catch(() => ({ following: [] })),
+    apiFetch('/columns').catch(() => ({
+      columns: [{ id: 'col-all', type: 'all', ref: null, title: 'All Accounts', icon: '⋯', iconBg: 'rgba(42,171,238,0.12)' }],
+    })),
+  ]);
+  lists = listsRes.lists;
+  following = followingRes.following;
+  columns = columnsRes.columns;
+
+  apiFetch('/me').then(r => { meProfile = r.user; updateProfilePanel(); }).catch(() => {});
+}
+
+// ══════════════════════════════════════════════════════════
+//  API HELPERS
+// ══════════════════════════════════════════════════════════
+async function apiFetch(path, opts = {}) {
+  const res = await fetch(API + path, {
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...opts.headers },
+    ...opts,
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'API error');
+  return data;
+}
+
+// ══════════════════════════════════════════════════════════
+//  WEBSOCKET — live message push
+// ══════════════════════════════════════════════════════════
+async function connectWebSocket() {
+  if (!profilesList.length) return;
+  clearTimeout(wsReconnectTimer);
+  wsReconnectTimer = null;
+  const myGen = ++wsGen;
+  let token = '';
+  try {
+    const t = await apiFetch('/ws-token');
+    token = t.token;
+  } catch (_) {
+    wsReconnectTimer = setTimeout(connectWebSocket, 3000);
+    return;
+  }
+  if (myGen !== wsGen) return;
+  if (ws) { try { ws.close(); } catch (_) {} }
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}/ws?t=${encodeURIComponent(token)}`);
+
+  ws.addEventListener('open', () => {
+    if (myGen !== wsGen) return;
+    wsConnected = true;
+    if (wsPingTimer) clearInterval(wsPingTimer);
+    wsPingTimer = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ping' }));
+    }, 30000);
+  });
+
+  ws.addEventListener('message', (e) => {
+    try {
+      const payload = JSON.parse(e.data);
+      if (payload.type === 'new_message') handleLiveMessage(payload.message);
+    } catch (_) {}
+  });
+
+  ws.addEventListener('close', () => {
+    wsConnected = false;
+    if (wsPingTimer) { clearInterval(wsPingTimer); wsPingTimer = null; }
+    if (myGen !== wsGen) return;
+    wsReconnectTimer = setTimeout(connectWebSocket, 3000);
+  });
+
+  ws.addEventListener('error', () => {});
+}
+
+function startRelativeTimeTicker() {
+  function tick() {
+    document.querySelectorAll('.post-card[data-ts]').forEach(el => {
+      const t = el.querySelector('.post-time');
+      if (t) t.textContent = formatTime(parseInt(el.dataset.ts, 10));
+    });
+  }
+  tick();
+  setInterval(tick, 30000);
+}
+
+function startColumnPolling() {
+  if (columnPollTimer) clearInterval(columnPollTimer);
+  columnPollTimer = setInterval(() => { columns.forEach(pollNewInColumn); }, 45000);
+}
+
+async function pollNewInColumn(col) {
+  const body = document.getElementById('body-' + col.id);
+  if (!body || body.querySelector('.loading-state, .empty-state')) return;
+  const top = body.querySelector('.post-card[data-ts]');
+  if (!top) return;
+  const topTs = parseInt(top.dataset.ts, 10);
+  const seen = new Set([...body.querySelectorAll('.post-card[data-post-id]')].map(el => el.dataset.postId));
+  const handles = getColumnHandles(col);
+  if (!handles.length) return;
+  const translateParam = settings.autoTranslate ? '&translate=true' : '';
+  const sinceMs = topTs + 1;
+  let messages = [];
+  try {
+    if (handles.length === 1) {
+      const url = `/messages/${encodeURIComponent(handles[0].replace('@', ''))}?limit=30&since=${sinceMs}${translateParam}`;
+      messages = (await apiFetch(url)).messages;
+    } else {
+      const qs = handles.map(h => `handles[]=${encodeURIComponent(h)}`).join('&');
+      messages = (await apiFetch(`/messages/batch?${qs}&since=${sinceMs}${translateParam}`)).messages;
+    }
+  } catch (_) { return; }
+  const fresh = messages.filter(m => m.timestamp > topTs && !seen.has(String(m.id)));
+  fresh.sort((a, b) => b.timestamp - a.timestamp);
+  fresh.forEach(m => prependPost(col.id, m, col.type));
+}
+
+function postCardClick(ev, url) {
+  if (ev.target.closest('video, a, button, input')) return;
+  window.open(url, '_blank');
+}
+
+function handleLiveMessage(msg) {
+  const senderHandle = msg.sender?.handle;
+  if (msg.sender?.handle) {
+    entityCache[msg.sender.handle] = {
+      name: msg.sender.name,
+      handle: msg.sender.handle,
+      color: entityColor(msg.sender.handle),
+      photoUrl: msg.sender.photoUrl || null,
+    };
+  }
+  columns.forEach(col => {
+    const handles = getColumnHandles(col);
+    if (senderHandle && handles.some(h => h.toLowerCase() === senderHandle.toLowerCase())) {
+      const body = document.getElementById('body-'+col.id);
+      if (!body) return;
+      if (body.scrollTop > 60) {
+        // User is scrolled — show notification
+        pendingLive[col.id] = (pendingLive[col.id] || 0) + 1;
+        const btn = document.getElementById('new-'+col.id);
+        if (btn) { btn.textContent = `↑ ${pendingLive[col.id]} new post${pendingLive[col.id]>1?'s':''}`;  btn.classList.add('visible'); }
+      } else {
+        prependPost(col.id, msg, col.type);
+      }
+    }
+  });
+}
+
+function prependPost(colId, msg, colType) {
+  const body = document.getElementById('body-'+colId);
+  if (!body) return;
+  // Remove empty/skeleton state if present
+  body.querySelector('.empty-state, .loading-state')?.remove();
+  const html = buildPostCard(msg, colType, 0);
+  body.insertAdjacentHTML('afterbegin', html);
+  observeVideos(body);
+}
+
+// ══════════════════════════════════════════════════════════
+//  SIDEBAR CONTROLS
+// ══════════════════════════════════════════════════════════
+let sidebarExpanded = false;
+function toggleSidebar() {
+  sidebarExpanded = !sidebarExpanded;
+  document.getElementById('sidebar').classList.toggle('expanded', sidebarExpanded);
+  apiFetch('/settings', { method:'PATCH', body: { sidebarExpanded } }).catch(()=>{});
+}
+
+let darkMode = true;
+function syncThemeBtn() {
+  const moon = document.getElementById('icon-theme-moon');
+  const sun = document.getElementById('icon-theme-sun');
+  if (!moon || !sun) return;
+  if (darkMode) { moon.style.display = ''; sun.style.display = 'none'; }
+  else { moon.style.display = 'none'; sun.style.display = ''; }
+}
+
+function toggleTheme() {
+  darkMode = !darkMode;
+  document.body.classList.toggle('light', !darkMode);
+  syncThemeBtn();
+  apiFetch('/settings', { method:'PATCH', body: { darkMode } }).catch(()=>{});
+}
+
+function isPopoutWindow() {
+  try { return new URLSearchParams(window.location.search).get('popout') === '1'; }
+  catch (_) { return false; }
+}
+
+function openPopout() {
+  const u = new URL(window.location.href);
+  u.searchParams.set('popout', '1');
+  window.open(u.toString(), 'telegramdeck-popout', 'width=1240,height=820,menubar=no,toolbar=no');
+}
+
+function adjustPopoutChrome() {
+  const btn = document.getElementById('btn-popout');
+  if (btn) btn.style.display = isPopoutWindow() ? 'none' : '';
+}
+
+async function toggleTranslate() {
+  settings.autoTranslate = !settings.autoTranslate;
+  document.getElementById('btn-translate').classList.toggle('active', settings.autoTranslate);
+  await apiFetch('/settings', { method:'PATCH', body: { autoTranslate: settings.autoTranslate } }).catch(()=>{});
+  renderAllColumns(); // re-render with/without translations
+}
+
+async function refreshSessionProfiles() {
+  try {
+    const r = await fetch(API + '/session', { credentials: 'include' });
+    const d = await r.json();
+    if (d.ok) {
+      profilesList = d.profiles || [];
+      activeProfileId = d.activeProfileId || (profilesList[0] && profilesList[0].id) || null;
+    }
+  } catch (_) {}
+  renderProfilesSwitcher();
+}
+
+function renderProfilesSwitcher() {
+  const el = document.getElementById('profiles-switcher');
+  if (!el) return;
+  if (!profilesList.length) {
+    el.innerHTML = '<p style="font-size:13px;color:var(--text3)">No users yet — add a session string below.</p>';
+    return;
+  }
+  el.innerHTML = profilesList.map((p) => `
+    <div class="list-item" style="cursor:default;padding:8px 10px;margin-bottom:4px">
+      <label style="flex:1;display:flex;align-items:center;gap:10px;cursor:pointer;margin:0">
+        <input type="radio" name="deck-profile" value="${escAttr(p.id)}" ${p.id === activeProfileId ? 'checked' : ''} onchange="switchDeckProfile('${escAttr(p.id)}')"/>
+        <span class="li-name">${escHtml(p.label)}</span>
+      </label>
+      <button type="button" class="icon-btn danger" title="Remove user" onclick="removeTelegramProfile('${escAttr(p.id)}')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="m19 6-.867 14.142A2 2 0 0 1 16.138 22H7.862a2 2 0 0 1-1.995-1.858L5 6"/></svg>
+      </button>
+    </div>`).join('');
+}
+
+async function switchDeckProfile(id) {
+  if (!id || id === activeProfileId) return;
+  try {
+    await apiFetch('/profile/active', { method: 'POST', body: { profileId: id } });
+    activeProfileId = id;
+    await loadDeckStateForActiveProfile();
+    renderProfilesSwitcher();
+    renderAllColumns();
+    if (ws) { try { ws.close(); } catch (_) {} }
+    connectWebSocket();
+    showToast('Switched user');
+  } catch (e) {
+    showToast(e.message, true);
+    renderProfilesSwitcher();
+  }
+}
+
+async function addTelegramProfile() {
+  const sessionString = document.getElementById('inp-profile-session').value.trim();
+  const label = document.getElementById('inp-profile-label').value.trim();
+  if (!sessionString) { showToast('Paste the session string', true); return; }
+  try {
+    await apiFetch('/profiles', { method: 'POST', body: { sessionString, label: label || undefined } });
+    document.getElementById('inp-profile-session').value = '';
+    document.getElementById('inp-profile-label').value = '';
+    await refreshSessionProfiles();
+    const wasEmpty = !document.querySelector('#columns-wrap .col');
+    await loadDeckStateForActiveProfile();
+    if (wasEmpty) {
+      document.getElementById('columns-wrap').innerHTML = '';
+      renderAllColumns();
+      connectWebSocket();
+      startRelativeTimeTicker();
+      startColumnPolling();
+    } else {
+      renderAllColumns();
+      if (ws) { try { ws.close(); } catch (_) {} }
+      connectWebSocket();
+    }
+    showToast('Telegram user added');
+  } catch (e) {
+    showToast(e.message, true);
+  }
+}
+
+async function removeTelegramProfile(id) {
+  if (!id) return;
+  if (!confirm('Remove this Telegram user from the server? Their deck and follows are deleted; shared lists are kept.')) return;
+  try {
+    await apiFetch('/profiles/' + encodeURIComponent(id), { method: 'DELETE' });
+    await refreshSessionProfiles();
+    if (!profilesList.length) {
+      location.reload();
+      return;
+    }
+    await loadDeckStateForActiveProfile();
+    renderProfilesSwitcher();
+    renderAllColumns();
+    if (ws) { try { ws.close(); } catch (_) {} }
+    connectWebSocket();
+    showToast('User removed');
+  } catch (e) {
+    showToast(e.message, true);
+  }
+}
+
+function removeActiveTelegramUser() {
+  if (activeProfileId) removeTelegramProfile(activeProfileId);
+}
+
+// ══════════════════════════════════════════════════════════
+//  PANELS
+// ══════════════════════════════════════════════════════════
+let openDrawerPanelId = null;
+
+function openPanel(id) {
+  const drawer = document.getElementById('feature-drawer');
+  const sheet = document.getElementById(id);
+  if (!drawer || !sheet) return;
+  openDrawerPanelId = id;
+  drawer.classList.add('open');
+  drawer.setAttribute('aria-hidden', 'false');
+  drawer.querySelectorAll('.panel-sheet').forEach((el) => {
+    const on = el.id === id;
+    el.classList.toggle('active', on);
+    el.hidden = !on;
+  });
+  if (id==='panel-lists')     renderListsPanel();
+  if (id==='panel-deck')      renderDeckPanel();
+  if (id==='panel-add')       initAddPanel();
+  if (id==='panel-following') renderFollowingPanel();
+  if (id==='panel-account')   { refreshSessionProfiles(); updateProfilePanel(); }
+}
+
+function closePanel(id) {
+  const drawer = document.getElementById('feature-drawer');
+  const sheet = id ? document.getElementById(id) : null;
+  if (sheet) {
+    sheet.classList.remove('active');
+    sheet.hidden = true;
+  }
+  if (openDrawerPanelId === id) openDrawerPanelId = null;
+  if (!drawer) return;
+  const anyOpen = [...drawer.querySelectorAll('.panel-sheet')].some((s) => s.classList.contains('active'));
+  if (!anyOpen) {
+    drawer.classList.remove('open');
+    drawer.setAttribute('aria-hidden', 'true');
+  }
+}
+
+function updateProfilePanel() {
+  if (!meProfile) return;
+  const name = [meProfile.firstName, meProfile.lastName].filter(Boolean).join(' ') || meProfile.username || 'You';
+  document.getElementById('pa-name').textContent = name;
+  const letterEl = document.getElementById('pa-letter');
+  const imgEl = document.getElementById('pa-avatar-img');
+  letterEl.textContent = name.charAt(0).toUpperCase();
+  letterEl.style.display = '';
+  imgEl.onload = null;
+  imgEl.onerror = null;
+  if (meProfile.photoUrl && meProfile.username) {
+    imgEl.style.display = 'block';
+    imgEl.onload = () => { letterEl.style.display = 'none'; };
+    imgEl.onerror = () => { imgEl.style.display = 'none'; letterEl.style.display = ''; };
+    imgEl.src = meProfile.photoUrl;
+  } else {
+    imgEl.removeAttribute('src');
+    imgEl.style.display = 'none';
+  }
+  document.getElementById('pa-handle').textContent = meProfile.username ? '@'+meProfile.username : '—';
+  document.getElementById('pa-phone').textContent = meProfile.phone || '—';
+  const statusEl = document.getElementById('pa-status');
+  if (wsConnected) {
+    statusEl.style.color = 'var(--success)';
+    const strong = statusEl.parentElement.querySelector('strong');
+    if (strong && strong.childNodes[1]) strong.childNodes[1].textContent = ' Connected';
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//  ADD ACCOUNT
+// ══════════════════════════════════════════════════════════
+function initAddPanel() {
+  addMode = 'me';
+  document.getElementById('pill-me').classList.add('selected');
+  document.getElementById('pill-list').classList.remove('selected');
+  document.getElementById('add-list-select').style.display = 'none';
+  document.getElementById('add-preview').style.display = 'none';
+  document.getElementById('inp-add-handle').value = '';
+  // Populate list selector
+  const sel = document.getElementById('sel-add-list');
+  sel.innerHTML = lists.map(l=>`<option value="${l.id}">${escHtml(l.name)}</option>`).join('');
+}
+
+function selectAddMode(mode) {
+  addMode = mode;
+  document.getElementById('pill-me').classList.toggle('selected', mode==='me');
+  document.getElementById('pill-list').classList.toggle('selected', mode==='list');
+  document.getElementById('add-list-select').style.display = mode==='list' ? 'block' : 'none';
+}
+
+let previewDebounce;
+async function previewHandle() {
+  clearTimeout(previewDebounce);
+  previewDebounce = setTimeout(async () => {
+    const raw = document.getElementById('inp-add-handle').value.trim();
+    const prev = document.getElementById('add-preview');
+    if (!raw) { prev.style.display='none'; return; }
+    const handle = normalise(raw);
+    try {
+      const data = await apiFetch('/entity/' + encodeURIComponent(handle.replace('@','')));
+      const e = data.entity;
+      const color = entityColor(handle);
+      prev.style.display = 'block';
+      prev.innerHTML = `<div class="list-item" style="background:var(--bg3);border-radius:8px;cursor:default">
+        ${buildAvatarHtml(e.handle, e.name, color, 36)}
+        <div class="li-text"><div class="li-name">${escHtml(e.name)}</div><div class="li-sub">${escHtml(e.handle)}</div></div>
+        <span class="badge badge-green">Found ✓</span></div>`;
+      entityCache[handle] = { name: e.name, handle: e.handle, color, photoUrl: e.photoUrl || null };
+    } catch(_) {
+      prev.style.display = 'block';
+      prev.innerHTML = `<div style="font-size:12px;color:var(--danger);padding:8px">Account not found or private.</div>`;
+    }
+  }, 600);
+}
+
+async function addAccountSubmit() {
+  const raw = document.getElementById('inp-add-handle').value.trim();
+  if (!raw) return;
+  const handle = normalise(raw);
+  const btn = document.getElementById('btn-add-submit');
+  btn.textContent = 'Adding…'; btn.disabled = true;
+
+  try {
+    if (addMode === 'me') {
+      await apiFetch('/following', { method:'POST', body:{ handle } });
+      if (!following.includes(handle)) following.push(handle);
+    } else {
+      const listId = document.getElementById('sel-add-list').value;
+      await apiFetch(`/lists/${listId}/accounts`, { method:'POST', body:{ handle } });
+      const list = lists.find(l=>l.id===listId);
+      if (list && !list.accounts.includes(handle)) list.accounts.push(handle);
+    }
+    closePanel('panel-add');
+    renderAllColumns();
+    showToast(`Added ${handle}`);
+  } catch(err) {
+    showToast('Error: ' + err.message, true);
+  } finally {
+    btn.textContent = 'Add Account'; btn.disabled = false;
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//  LISTS PANEL
+// ══════════════════════════════════════════════════════════
+function renderListsPanel() {
+  const c = document.getElementById('lists-container');
+  c.innerHTML = '';
+  if (!lists.length) { c.innerHTML='<div class="empty-state"><p>No lists yet. Create one below.</p></div>'; return; }
+  lists.forEach(list => {
+    const inDeck = columns.some(col=>col.type==='list'&&col.ref===list.id);
+    const div = document.createElement('div');
+    div.className = 'list-item';
+    div.innerHTML = `
+      <div class="li-icon">${listInitial(list.name)}</div>
+      <div class="li-text"><div class="li-name">${escHtml(list.name)}</div><div class="li-sub">${list.accounts.length} account${list.accounts.length!==1?'s':''}</div></div>
+      <div class="li-actions">
+        <button class="icon-btn" title="View accounts" onclick="openListDetail('${list.id}')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        </button>
+        <button class="icon-btn" title="${inDeck?'Remove from deck':'Add to deck'}" style="${inDeck?'color:var(--accent)':''}" onclick="toggleListInDeck('${list.id}',this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="5" height="18" rx="1"/><rect x="9" y="3" width="5" height="18" rx="1"/><rect x="16" y="3" width="6" height="18" rx="1"/></svg>
+        </button>
+        <button class="icon-btn danger" onclick="deleteListUI('${list.id}')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="m19 6-.867 14.142A2 2 0 0 1 16.138 22H7.862a2 2 0 0 1-1.995-1.858L5 6"/></svg>
+        </button>
+      </div>`;
+    c.appendChild(div);
+  });
+}
+
+async function openListDetail(listId) {
+  const list = lists.find(l=>l.id===listId);
+  if (!list) return;
+  document.getElementById('list-detail-title').textContent = list.name;
+  const c = document.getElementById('list-detail-accounts');
+  c.innerHTML = '';
+  if (!list.accounts.length) { c.innerHTML='<div class="empty-state"><p>No accounts yet. Add one via the + button.</p></div>'; }
+  list.accounts.forEach(handle => {
+    const info = entityCache[handle] || { name: handle.replace('@',''), handle, color: entityColor(handle) };
+    const div = document.createElement('div');
+    div.className = 'list-item';
+    div.innerHTML = `
+      ${buildAvatarHtml(info.handle, info.name, info.color, 36)}
+      <div class="li-text"><div class="li-name">${escHtml(info.name)}</div><div class="li-sub">${escHtml(info.handle)}</div></div>
+      <button class="icon-btn danger" onclick="removeFromListUI('${listId}','${handle}',this.closest('.list-item'))">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>`;
+    c.appendChild(div);
+  });
+  openPanel('panel-list-detail');
+}
+
+async function removeFromListUI(listId, handle, el) {
+  await apiFetch(`/lists/${listId}/accounts/${encodeURIComponent(handle.replace('@',''))}`, { method:'DELETE' }).catch(()=>{});
+  const list = lists.find(l=>l.id===listId);
+  if (list) list.accounts = list.accounts.filter(a=>a!==handle);
+  el.remove();
+  renderAllColumns();
+}
+
+async function toggleListInDeck(listId, btn) {
+  const list = lists.find(l=>l.id===listId);
+  if (!list) return;
+  const existing = columns.findIndex(c=>c.type==='list'&&c.ref===listId);
+  if (existing>-1) {
+    columns.splice(existing,1);
+    btn.style.color='';
+    await apiFetch('/columns/col-list-'+listId, { method:'DELETE' }).catch(()=>{});
+  } else {
+    const col = { id:'col-list-'+listId, type:'list', ref:listId, title:list.name, icon:listInitial(list.name), iconBg:'var(--bg4)' };
+    columns.push(col);
+    btn.style.color='var(--accent)';
+    await apiFetch('/columns', { method:'POST', body: col }).catch(()=>{});
+  }
+  renderAllColumns();
+}
+
+async function deleteListUI(listId) {
+  if (!confirm('Delete this list?')) return;
+  await apiFetch('/lists/'+listId, { method:'DELETE' }).catch(()=>{});
+  lists = lists.filter(l=>l.id!==listId);
+  columns = columns.filter(c=>!(c.type==='list'&&c.ref===listId));
+  renderListsPanel();
+  renderAllColumns();
+}
+
+async function createList() {
+  const name = document.getElementById('inp-new-list').value.trim();
+  if (!name) return;
+  const data = await apiFetch('/lists', { method:'POST', body:{ name, emoji: '' } }).catch(e=>{showToast(e.message,true);return null;});
+  if (!data) return;
+  lists.push(data.list);
+  document.getElementById('inp-new-list').value='';
+  renderListsPanel();
+  showToast(`Created "${name}"`);
+}
+
+// ══════════════════════════════════════════════════════════
+//  FOLLOWING PANEL
+// ══════════════════════════════════════════════════════════
+function renderFollowingPanel() {
+  const c = document.getElementById('following-container');
+  c.innerHTML = '';
+  if (!following.length) { c.innerHTML='<div class="empty-state"><p>No individually followed accounts.<br>Use Add Account → Just for me.</p></div>'; return; }
+  following.forEach(handle => {
+    const info = entityCache[handle] || { name: handle.replace('@',''), handle, color: entityColor(handle) };
+    const inDeck = columns.some(col=>col.type==='account'&&col.ref===handle);
+    const div = document.createElement('div');
+    div.className = 'list-item';
+    div.innerHTML = `
+      ${buildAvatarHtml(handle, info.name, info.color, 36)}
+      <div class="li-text"><div class="li-name">${escHtml(info.name)}</div><div class="li-sub">${escHtml(info.handle)}</div></div>
+      <div class="li-actions">
+        <button class="icon-btn" style="${inDeck?'color:var(--accent)':''}" title="Toggle column" onclick="toggleAccountColUI('${handle}',this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="5" height="18" rx="1"/><rect x="9" y="3" width="5" height="18" rx="1"/><rect x="16" y="3" width="6" height="18" rx="1"/></svg>
+        </button>
+        <button class="icon-btn danger" onclick="unfollowUI('${handle}',this.closest('.list-item'))">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>`;
+    c.appendChild(div);
+  });
+}
+
+async function unfollowUI(handle, el) {
+  await apiFetch('/following/'+encodeURIComponent(handle.replace('@','')), { method:'DELETE' }).catch(()=>{});
+  following = following.filter(h=>h!==handle);
+  columns = columns.filter(c=>!(c.type==='account'&&c.ref===handle));
+  el.remove();
+  renderAllColumns();
+}
+
+async function toggleAccountColUI(handle, btn) {
+  const info = entityCache[handle] || { name: handle.replace('@',''), handle, color: entityColor(handle) };
+  const existing = columns.findIndex(c=>c.type==='account'&&c.ref===handle);
+  if (existing>-1) {
+    const id = columns[existing].id;
+    columns.splice(existing,1);
+    btn.style.color='';
+    await apiFetch('/columns/'+id, { method:'DELETE' }).catch(()=>{});
+  } else {
+    const col = { id:'col-acc-'+handle.replace('@',''), type:'account', ref:handle, title:info.name, icon:info.name.charAt(0).toUpperCase(), iconBg:info.color+'33' };
+    columns.push(col);
+    btn.style.color='var(--accent)';
+    await apiFetch('/columns', { method:'POST', body:col }).catch(()=>{});
+  }
+  renderAllColumns();
+}
+
+// ══════════════════════════════════════════════════════════
+//  DECK PANEL
+// ══════════════════════════════════════════════════════════
+function renderDeckPanel() {
+  const active = document.getElementById('deck-active-cols');
+  active.innerHTML = '';
+  columns.forEach(col => {
+    const div = document.createElement('div');
+    div.className = 'deck-col-item';
+    div.innerHTML = `${deckColIconHtml(col)}
+      <span class="dci-label">${escHtml(deckColTitle(col))}</span>
+      ${col.id==='col-all'
+        ? '<span class="badge badge-blue">Default</span>'
+        : `<button class="icon-btn danger" onclick="removeDeckColUI('${col.id}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`}`;
+    active.appendChild(div);
+  });
+
+  const addRow = document.getElementById('deck-add-row');
+  addRow.innerHTML = '';
+  const opts = [];
+  lists.forEach(l => {
+    if (!columns.some(c=>c.type==='list'&&c.ref===l.id))
+      opts.push({ label:l.name, action:()=>addDeckListUI(l.id) });
+  });
+  following.forEach(h => {
+    const info = entityCache[h] || { name:h.replace('@',''), handle:h };
+    if (!columns.some(c=>c.type==='account'&&c.ref===h))
+      opts.push({ label:info.name, action:()=>addDeckAccountUI(h) });
+  });
+  if (!opts.length) { addRow.innerHTML='<span style="font-size:13px;color:var(--text3)">All columns are already active.</span>'; return; }
+  opts.forEach(o => {
+    const btn = document.createElement('div');
+    btn.className = 'dci-add-chip';
+    btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>${escHtml(o.label)}`;
+    btn.addEventListener('click', o.action);
+    addRow.appendChild(btn);
+  });
+}
+
+async function removeDeckColUI(colId) {
+  columns = columns.filter(c=>c.id!==colId);
+  await apiFetch('/columns/'+colId, { method:'DELETE' }).catch(()=>{});
+  renderAllColumns();
+  renderDeckPanel();
+}
+
+async function addDeckListUI(listId) {
+  const list = lists.find(l=>l.id===listId);
+  if (!list) return;
+  const col = { id:'col-list-'+listId, type:'list', ref:listId, title:list.name, icon:listInitial(list.name), iconBg:'var(--bg4)' };
+  columns.push(col);
+  await apiFetch('/columns', { method:'POST', body:col }).catch(()=>{});
+  renderAllColumns(); renderDeckPanel();
+}
+
+async function addDeckAccountUI(handle) {
+  const info = entityCache[handle] || { name:handle.replace('@',''), handle, color:entityColor(handle) };
+  const col = { id:'col-acc-'+handle.replace('@',''), type:'account', ref:handle, title:info.name, icon:info.name.charAt(0).toUpperCase(), iconBg:info.color+'33' };
+  columns.push(col);
+  await apiFetch('/columns', { method:'POST', body:col }).catch(()=>{});
+  renderAllColumns(); renderDeckPanel();
+}
+
+// ══════════════════════════════════════════════════════════
+//  COLUMNS RENDER
+// ══════════════════════════════════════════════════════════
+function renderAllColumns() {
+  const wrap = document.getElementById('columns-wrap');
+  wrap.innerHTML = '';
+  columns.forEach(col => {
+    wrap.appendChild(buildColumnEl(col));
+    // Must run after attach: getElementById only sees nodes in the document tree.
+    loadColumnMessages(col);
+  });
+}
+
+function buildColumnEl(col) {
+  const div = document.createElement('div');
+  div.className = 'col';
+  div.dataset.colId = col.id;
+
+  const { iconHtml, iconBg } = colHeaderIconParts(col);
+
+  div.innerHTML = `
+    <div class="col-header" draggable="true" ondragstart="onDragStart(event,'${col.id}')" ondragend="onDragEnd(event)">
+      <div class="col-icon" style="background:${iconBg}">${iconHtml}</div>
+      <div class="col-title-wrap">
+        <div class="col-title">${escHtml(colHeaderTitle(col))}</div>
+      </div>
+      ${col.id==='col-all' ? '' : `<button class="col-close" onclick="removeDeckColUI('${col.id}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`}
+    </div>
+    <div class="new-posts-btn" id="new-${col.id}" onclick="scrollColTop('${col.id}')"></div>
+    <div class="col-body" id="body-${col.id}">
+      <div class="loading-state">${[1,2,3].map(()=>'<div class="skeleton"></div>').join('')}</div>
+    </div>`;
+
+  return div;
+}
+
+async function loadColumnMessages(col) {
+  const body = document.getElementById('body-'+col.id);
+  if (!body) return;
+
+  try {
+    const handles = getColumnHandles(col);
+    if (!handles.length) {
+      body.innerHTML = `<div class="empty-state"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><p>No accounts tracked in this column yet.</p></div>`;
+      return;
+    }
+
+    const sinceMs = Date.now() - THREE_DAYS;
+    const translateParam = settings.autoTranslate ? '&translate=true' : '';
+
+    let messages = [];
+    if (handles.length === 1) {
+      const url = `/messages/${encodeURIComponent(handles[0].replace('@',''))}?limit=40&since=${sinceMs}${translateParam}`;
+      const d = await apiFetch(url);
+      messages = d.messages;
+    } else {
+      const qs = handles.map(h=>`handles[]=${encodeURIComponent(h)}`).join('&');
+      const url = `/messages/batch?${qs}&since=${sinceMs}${translateParam}`;
+      const d = await apiFetch(url);
+      messages = d.messages;
+    }
+    // Cache entity names for display
+    messages.forEach(m => {
+      if (m.sender?.handle) {
+        entityCache[m.sender.handle] = {
+          name: m.sender.name,
+          handle: m.sender.handle,
+          color: entityColor(m.sender.handle),
+          photoUrl: m.sender.photoUrl || null,
+        };
+      }
+    });
+
+    if (!messages.length) {
+      body.innerHTML = `<div class="empty-state"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><p>No posts in the last 3 days.</p></div>`;
+      return;
+    }
+
+    body.innerHTML = messages.map((m, i) => buildPostCard(m, col.type, i)).join('');
+    observeVideos(body);
+  } catch(err) {
+    body.innerHTML = `<div class="empty-state"><p style="color:var(--danger)">${err.message}</p></div>`;
+  }
+}
+
+function getColumnHandles(col) {
+  if (col.type==='all') {
+    const h = new Set();
+    lists.forEach(l=>l.accounts.forEach(a=>h.add(a)));
+    following.forEach(a=>h.add(a));
+    return [...h];
+  }
+  if (col.type==='list') { const l=lists.find(x=>x.id===col.ref); return l?l.accounts:[]; }
+  if (col.type==='account') return col.ref ? [col.ref] : [];
+  if (col.type==='following') return [...following];
+  return [];
+}
+
+// ══════════════════════════════════════════════════════════
+//  POST CARD
+// ══════════════════════════════════════════════════════════
+function buildPostCard(msg, colType, postIndex) {
+  const sender = msg.sender || {};
+  const name   = sender.name || sender.handle || 'Unknown';
+  const handle = sender.handle || '@unknown';
+  const color  = entityCache[handle]?.color || entityColor(handle);
+  if (sender.photoUrl && !entityCache[handle]?.photoUrl) {
+    entityCache[handle] = { ...entityCache[handle], name, handle, color, photoUrl: sender.photoUrl };
+  }
+  const tgUrl  = msg.url || `https://t.me/${handle.replace('@','')}`;
+  const time   = formatTime(msg.timestamp);
+
+  let mediaHtml = '';
+  if (msg.mediaItems && msg.mediaItems.length) {
+    const cells = msg.mediaItems.map(item => {
+      const u = escAttr(item.url);
+      if (item.kind === 'video') {
+        const idx = typeof postIndex === 'number' ? postIndex : 999;
+        const urgent = idx < 4;
+        const preload = urgent ? 'auto' : 'none';
+        const fp = urgent ? ' fetchpriority="high"' : '';
+        return `<video class="post-media-video post-media-video-autoplay" src="${u}" muted playsinline preload="${preload}"${fp} controls></video>`;
+      }
+      return `<img class="post-media-img" src="${u}" alt="" loading="lazy" decoding="async"/>`;
+    }).join('');
+    mediaHtml = `<div class="post-media"><div class="post-media-grid">${cells}</div></div>`;
+  } else if (msg.hasMedia) {
+    mediaHtml = `<div class="post-media post-media-placeholder"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><span>${escHtml(msg.mediaType||'media')}</span></div>`;
+  }
+
+  let textHtml = '';
+  if (msg.wasTranslated) {
+    textHtml = `<div class="post-text">${escHtml(msg.text)}<div class="translation-block"><div class="original-text">${escHtml(msg.originalText||'')}</div><span class="translate-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12.87 15.07l-2.54-2.51.03-.03A17.52 17.52 0 0014.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg>Translated from ${langName(msg.sourceLang)}</span></div></div>`;
+  } else {
+    textHtml = `<div class="post-text">${escHtml(msg.text||'')}</div>`;
+  }
+
+  const statsHtml = (msg.views!=null||msg.forwards!=null) ? `<div class="post-stats">
+    ${msg.views!=null?`<div class="post-stat"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>${escHtml(String(msg.views))}</div>`:''}
+    ${msg.forwards!=null?`<div class="post-stat"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/></svg>${escHtml(String(msg.forwards))}</div>`:''}
+  </div>` : '';
+
+  const clickArg = JSON.stringify(tgUrl);
+  return `<div class="post-card" data-post-id="${escAttr(String(msg.id))}" data-ts="${msg.timestamp}" onclick="postCardClick(event,${clickArg})">
+    <div class="post-header">
+      ${buildAvatarHtml(handle, name, color, 34)}
+      <div class="post-info"><div class="post-name">${escHtml(name)}</div><div class="post-handle">${escHtml(handle)}</div></div>
+      <div class="post-time">${time}</div>
+    </div>
+    ${textHtml}${mediaHtml}${statsHtml}
+  </div>`;
+}
+
+function scrollColTop(colId) {
+  const body = document.getElementById('body-'+colId);
+  if (body) body.scrollTop = 0;
+  const btn = document.getElementById('new-'+colId);
+  if (btn) btn.classList.remove('visible');
+  pendingLive[colId] = 0;
+}
+
+// ══════════════════════════════════════════════════════════
+//  DRAG & DROP
+// ══════════════════════════════════════════════════════════
+function onDragStart(e, colId) {
+  dragColId = colId;
+  setTimeout(() => document.querySelector(`[data-col-id="${colId}"]`)?.classList.add('dragging'), 0);
+  e.dataTransfer.effectAllowed = 'move';
+}
+function onDragEnd() {
+  document.querySelectorAll('.col').forEach(c=>c.classList.remove('dragging','drag-over'));
+}
+function onDragOver(e) {
+  e.preventDefault();
+  const t = e.target.closest('.col');
+  document.querySelectorAll('.col').forEach(c=>c.classList.remove('drag-over'));
+  if (t && t.dataset.colId !== dragColId) t.classList.add('drag-over');
+}
+async function onDrop(e) {
+  e.preventDefault();
+  const t = e.target.closest('.col');
+  if (!t || !dragColId || t.dataset.colId===dragColId) return;
+  t.classList.remove('drag-over');
+  const fi = columns.findIndex(c=>c.id===dragColId);
+  const ti = columns.findIndex(c=>c.id===t.dataset.colId);
+  if (fi<0||ti<0) return;
+  const [moved] = columns.splice(fi,1);
+  columns.splice(ti,0,moved);
+  renderAllColumns();
+  dragColId = null;
+  await apiFetch('/columns', { method:'PUT', body:{ columns } }).catch(()=>{});
+}
+
+// ══════════════════════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════════════════════
+function normalise(raw) {
+  return '@' + raw.replace(/^@/,'').replace(/^https?:\/\/t\.me\//,'').toLowerCase().trim();
+}
+
+function listInitial(name) {
+  const ch = (name || '').trim().charAt(0).toUpperCase();
+  return ch || '?';
+}
+
+function avatarUrlFromHandle(handle) {
+  if (!handle) return null;
+  const u = String(handle).replace(/^@/, '').toLowerCase();
+  if (!u) return null;
+  return API + '/avatar/' + encodeURIComponent(u);
+}
+
+function buildAvatarHtml(handle, displayName, color, size) {
+  const initials = (displayName || handle || '?').split(' ').map(w => (w[0] || '')).join('').slice(0, 2).toUpperCase() || '?';
+  const w = size || 36;
+  const fs = Math.max(10, Math.round(w / 2.8));
+  const url = avatarUrlFromHandle(handle);
+  if (!url) {
+    return `<div class="avatar" style="background:${color};width:${w}px;height:${w}px;font-size:${fs}px">${escHtml(initials)}</div>`;
+  }
+  return `<div class="avatar avatar-photo-wrap" style="background:${color};width:${w}px;height:${w}px;font-size:${fs}px">
+    <img class="avatar-photo" src="${escAttr(url)}" alt="" decoding="async" loading="lazy" onerror="this.classList.add('avatar-photo--err')"/>
+    <span class="avatar-initials">${escHtml(initials)}</span>
+  </div>`;
+}
+
+function colHeaderTitle(col) {
+  if (col.type === 'list') {
+    const l = lists.find(x => x.id === col.ref);
+    if (l) return l.name;
+  }
+  return col.title || '';
+}
+
+/** 6 dots in a 2×3 grid — drag handle hint */
+function columnGripSvg() {
+  return '<svg class="col-drag-grip" width="10" height="15" viewBox="0 0 10 15" aria-hidden="true"><circle cx="2.5" cy="2.5" r="1.35" fill="currentColor"/><circle cx="7.5" cy="2.5" r="1.35" fill="currentColor"/><circle cx="2.5" cy="7.5" r="1.35" fill="currentColor"/><circle cx="7.5" cy="7.5" r="1.35" fill="currentColor"/><circle cx="2.5" cy="12.5" r="1.35" fill="currentColor"/><circle cx="7.5" cy="12.5" r="1.35" fill="currentColor"/></svg>';
+}
+
+function colHeaderIconParts(col) {
+  if (col.type === 'all') {
+    return {
+      iconBg: 'var(--bg4)',
+      iconHtml: columnGripSvg(),
+    };
+  }
+  if (col.type === 'list') {
+    return { iconBg: 'var(--bg4)', iconHtml: columnGripSvg() };
+  }
+  if (col.type === 'account' && col.ref) {
+    const h = col.ref;
+    const info = entityCache[h] || {};
+    const color = info.color || entityColor(h);
+    const un = h.replace('@', '').toLowerCase();
+    const letter = listInitial(info.name || un);
+    const src = escAttr(API + '/avatar/' + encodeURIComponent(un));
+    return {
+      iconBg: color + '33',
+      iconHtml: `<img class="col-icon-img" src="${src}" alt="" decoding="async" loading="lazy" onerror="this.classList.add('col-icon-img--err')"/><span class="col-icon-fallback" style="font-weight:700;font-size:11px">${escHtml(letter)}</span>`,
+    };
+  }
+  if (col.type === 'following') {
+    return {
+      iconBg: 'var(--bg4)',
+      iconHtml: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+    };
+  }
+  const letter = listInitial(col.title);
+  return { iconBg: col.iconBg || 'var(--bg4)', iconHtml: `<span style="font-weight:700;font-size:12px">${escHtml(letter)}</span>` };
+}
+
+function deckColTitle(col) {
+  return colHeaderTitle(col);
+}
+
+function deckColIconHtml(col) {
+  const { iconHtml, iconBg } = colHeaderIconParts(col);
+  if (col.type === 'account' && col.ref) {
+    const h = col.ref;
+    const info = entityCache[h] || {};
+    const letter = listInitial(info.name || h.replace('@', ''));
+    const un = h.replace('@', '').toLowerCase();
+    const src = escAttr(API + '/avatar/' + encodeURIComponent(un));
+    return `<div class="dci-icon dci-icon-avatar" style="background:${iconBg}"><img src="${src}" alt="" decoding="async" loading="lazy" onerror="this.classList.add('dci-img--err')"/><span class="dci-fallback">${escHtml(letter)}</span></div>`;
+  }
+  return `<div class="dci-icon" style="background:${iconBg};font-size:14px">${iconHtml}</div>`;
+}
+
+function observeVideos(root) {
+  if (!root || !window.IntersectionObserver) return;
+  if (!videoIo) {
+    videoIo = new IntersectionObserver((entries) => {
+      entries.forEach((en) => {
+        const v = en.target;
+        if (!(v instanceof HTMLVideoElement)) return;
+        if (en.isIntersecting && en.intersectionRatio >= 0.2) {
+          if (v.readyState < HTMLMediaElement.HAVE_METADATA) v.load();
+          v.play().catch(() => {});
+        } else v.pause();
+      });
+    }, { threshold: [0, 0.15, 0.35], rootMargin: '100px 0px 280px 0px' });
+  }
+  root.querySelectorAll('video.post-media-video-autoplay').forEach((v) => {
+    try { videoIo.observe(v); } catch (_) {}
+  });
+}
+
+function entityColor(handle) {
+  let h = 0;
+  for (let i=0;i<handle.length;i++) h = (h*31+handle.charCodeAt(i)) & 0xffffffff;
+  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+}
+
+function formatTime(ts) {
+  const diff = Date.now() - ts;
+  const m = Math.floor(diff/60000);
+  const h = Math.floor(diff/3600000);
+  const d = Math.floor(diff/86400000);
+  if (m<1) return 'just now';
+  if (m<60) return m+'m';
+  if (h<24) return h+'h';
+  return d+'d';
+}
+
+function langName(code) {
+  const map={ru:'Russian',es:'Spanish',de:'German',fr:'French',zh:'Chinese',ar:'Arabic',it:'Italian',pt:'Portuguese',uk:'Ukrainian',pl:'Polish'};
+  return map[code]||code||'unknown';
+}
+
+function escHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function escAttr(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+}
+
+let toastTimer;
+function showToast(msg, isErr=false) {
+  let t = document.getElementById('toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast';
+    t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--bg4);border:1px solid var(--border2);color:var(--text);font-family:Outfit,sans-serif;font-size:13px;padding:10px 18px;border-radius:10px;z-index:9999;box-shadow:var(--shadow);transition:opacity 0.3s;';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.borderColor = isErr ? 'rgba(248,81,73,0.5)' : 'var(--border2)';
+  t.style.opacity = '1';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.style.opacity='0', 2800);
+}
+
+// ══════════════════════════════════════════════════════════
+//  GO
+// ══════════════════════════════════════════════════════════
+boot();
+</script>
+</body>
+</html>

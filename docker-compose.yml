@@ -1,0 +1,16 @@
+# Local / single-server run: copy .env from .env.example first.
+services:
+  telegramdeck:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+    volumes:
+      - telegramdeck_data:/app/data
+    restart: unless-stopped
+
+volumes:
+  telegramdeck_data:
