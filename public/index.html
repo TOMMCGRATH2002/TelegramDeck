@@ -345,7 +345,7 @@
     <h2>Account</h2>
     <div class="section-hdr" style="padding-top:0">Deck usernames</div>
     <p style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.45"><strong>Lists</strong> are <strong>shared</strong> on this server. Each deck username has its own <strong>Following</strong> and <strong>Deck</strong> columns. Telegram runs once on the server (admin <code style="font-size:11px">TELEGRAM_SESSION</code>).</p>
-    <div id="profiles-switcher" style="margin-bottom:14px"></div>
+    <p id="account-deck-line" style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.5">Signed in as <strong id="account-deck-name">—</strong>. To use a different deck, <strong>sign out</strong> below and sign back in with that username.</p>
     <button type="button" class="btn-ghost" style="width:100%;margin-bottom:14px" onclick="signOutDeck()">Sign out (switch user)</button>
     <div class="sep"></div>
     <div class="profile-card">
@@ -786,52 +786,16 @@ async function toggleTranslate() {
   renderAllColumns(); // re-render with/without translations
 }
 
-async function refreshSessionProfiles() {
-  try {
-    const r = await fetch(API + '/session', { credentials: 'include' });
-    const d = await r.json();
-    if (d.ok) {
-      profilesList = d.deckUsers || [];
-      activeProfileId = d.activeDeckUserId || null;
-    }
-  } catch (_) {}
-  renderProfilesSwitcher();
-}
-
-function renderProfilesSwitcher() {
-  const el = document.getElementById('profiles-switcher');
-  if (!el) return;
-  if (!profilesList.length) {
-    el.innerHTML = '<p style="font-size:13px;color:var(--text3)">No decks yet — sign out and create a username on the welcome screen.</p>';
-    return;
+function updateAccountDeckNameLine() {
+  const strong = document.getElementById('account-deck-name');
+  if (!strong) return;
+  let name = '—';
+  if (meProfile && meProfile.deckUsername) name = meProfile.deckUsername;
+  else {
+    const u = profilesList.find((p) => p.id === activeProfileId);
+    if (u) name = u.username || u.id;
   }
-  el.innerHTML = profilesList.map((p) => `
-    <div class="list-item" style="cursor:default;padding:8px 10px;margin-bottom:4px">
-      <label style="flex:1;display:flex;align-items:center;gap:10px;cursor:pointer;margin:0">
-        <input type="radio" name="deck-profile" value="${escAttr(p.id)}" ${p.id === activeProfileId ? 'checked' : ''} onchange="switchDeckProfile('${escAttr(p.id)}')"/>
-        <span class="li-name">${escHtml(p.username || p.id)}</span>
-      </label>
-      <button type="button" class="icon-btn danger" title="Delete this deck" onclick="removeTelegramProfile('${escAttr(p.id)}')">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="m19 6-.867 14.142A2 2 0 0 1 16.138 22H7.862a2 2 0 0 1-1.995-1.858L5 6"/></svg>
-      </button>
-    </div>`).join('');
-}
-
-async function switchDeckProfile(id) {
-  if (!id || id === activeProfileId) return;
-  try {
-    await apiFetch('/session/active', { method: 'POST', body: { deckUserId: id } });
-    activeProfileId = id;
-    await loadDeckStateForActiveProfile();
-    renderProfilesSwitcher();
-    renderAllColumns();
-    if (ws) { try { ws.close(); } catch (_) {} }
-    connectWebSocket();
-    showToast('Switched user');
-  } catch (e) {
-    showToast(e.message, true);
-    renderProfilesSwitcher();
-  }
+  strong.textContent = name;
 }
 
 async function removeTelegramProfile(id) {
@@ -870,7 +834,7 @@ function openPanel(id) {
   if (id==='panel-deck')      renderDeckPanel();
   if (id==='panel-add')       initAddPanel();
   if (id==='panel-following') renderFollowingPanel();
-  if (id==='panel-account')   { refreshSessionProfiles(); updateProfilePanel(); }
+  if (id==='panel-account')   { updateAccountDeckNameLine(); updateProfilePanel(); }
 }
 
 function closePanel(id) {
@@ -925,6 +889,7 @@ function updateProfilePanel() {
   document.getElementById('pa-handle').textContent = meProfile.telegramConnected
     ? 'Server Telegram connection is active (your personal Telegram account is not shown here).'
     : 'Checking connection…';
+  updateAccountDeckNameLine();
 }
 
 // ══════════════════════════════════════════════════════════

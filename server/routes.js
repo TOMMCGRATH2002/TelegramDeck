@@ -159,17 +159,6 @@ router.post('/session/logout', (req, res) => {
   });
 });
 
-router.post('/session/active', (req, res) => {
-  const { deckUserId } = req.body || {};
-  if (!isValidDeckUserId(deckUserId)) return fail(res, 'Invalid deck user id', 400);
-  if (!state.getDeckUser(deckUserId)) return fail(res, 'Unknown deck user', 400);
-  req.session[SESSION_DECK_USER_KEY] = deckUserId;
-  req.session.save((err) => {
-    if (err) return fail500(res, err);
-    ok(res, { activeDeckUserId: deckUserId });
-  });
-});
-
 router.delete('/deck-users/:id', requireDeckUser, async (req, res) => {
   const id = req.params.id;
   if (!isValidDeckUserId(id)) return fail(res, 'Invalid deck user id', 400);
@@ -177,7 +166,7 @@ router.delete('/deck-users/:id', requireDeckUser, async (req, res) => {
   if (req.deckUserId !== id) return fail(res, 'You can only remove your own deck.', 403);
   mediaCache.invalidateForProfile(id);
   state.removeDeckUser(id);
-  req.session[SESSION_DECK_USER_KEY] = null;
+  delete req.session[SESSION_DECK_USER_KEY];
   req.session.save((err) => {
     if (err) return fail500(res, err);
     ok(res, { removed: id });

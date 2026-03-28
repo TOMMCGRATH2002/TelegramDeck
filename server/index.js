@@ -208,6 +208,11 @@ app.get('*', (req, res) => {
     console.log(`   Also: http://127.0.0.1:${PORT}  ·  optional host: http://telegramdeck.local:${PORT} (add to your hosts file)\n`);
     // Init WS after server is listening
     wsServer.init(server);
+    if (state.isTelegramConfigured()) {
+      tg.ensureConnected('startup')
+        .then(() => console.log('📡  Telegram MTProto singleton ready'))
+        .catch((err) => console.warn('⚠️  Telegram warm-up failed:', err.message));
+    }
   });
 
   // Graceful shutdown

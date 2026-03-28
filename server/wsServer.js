@@ -32,9 +32,8 @@ function init(server) {
     console.log('🌐  WebSocket client connected (deck user ' + deckUserId + ')');
     safeSend(ws, { type: 'connected', message: 'TelegramDeck WebSocket ready' });
 
-    tg.ensureConnected(deckUserId).catch((err) => {
-      console.warn('WS Telegram connect:', err.message);
-    });
+    // Do not call ensureConnected here — it races with HTTP /api/me and message fetches and can
+    // trigger Telegram 406 AUTH_KEY_DUPLICATED. The singleton is warmed at server start and via API.
 
     ws.on('message', (raw) => {
       try {
