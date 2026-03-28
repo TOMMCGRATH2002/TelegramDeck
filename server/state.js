@@ -1,8 +1,9 @@
 /**
  * state.js — JSON persistence
  *
- * Shared: lists (same for every Telegram user on this server)
- * Per profile: Telegram session, individual follows, deck columns, UI settings
+ * Shared: lists (everyone on this server)
+ * One Telegram MTProto session for the whole server (env TELEGRAM_SESSION or migrated into telegram.session)
+ * Per deck user: username (login), individual follows, deck columns, UI settings
  */
 
 const fs   = require('fs');
@@ -23,11 +24,16 @@ const DEFAULT_COLUMNS = [
 function emptyState() {
   return {
     lists: [],
-    profiles: {},
+    telegram: { session: '' },
+    deckUsers: {},
   };
 }
 
-function migrateLegacy(raw) {
+/** Old file format before deck users */
+function migrateLegacyRaw(raw) {
+  if (raw && raw.deckUsers && typeof raw.deckUsers === 'object' && !Array.isArray(raw.deckUsers)) {
+    return raw;
+  }
   if (raw && raw.profiles && typeof raw.profiles === 'object' && !Array.isArray(raw.profiles)) {
     return {
       lists: Array.isArray(raw.lists) ? raw.lists : [],
@@ -61,24 +67,70 @@ function migrateLegacy(raw) {
   };
 }
 
+/**
+ * Convert legacy { profiles with session } → { telegram, deckUsers }.
+ * Persists once when migration runs.
+ */
+function normalizeToDeckUsersShape(legacy) {
+  if (legacy.deckUsers && typeof legacy.deckUsers === 'object') {
+    const stored = (legacy.telegram && legacy.telegram.session) || '';
+    const env = (process.env.TELEGRAM_SESSION || '').trim();
+    return {
+      lists: Array.isArray(legacy.lists) ? legacy.lists : [],
+      telegram: { session: env || stored },
+      deckUsers: { ...legacy.deckUsers },
+    };
+  }
+
+  const lists = Array.isArray(legacy.lists) ? legacy.lists : [];
+  const profiles = legacy.profiles || {};
+  let session = (process.env.TELEGRAM_SESSION || '').trim();
+  const deckUsers = {};
+
+  for (const [id, p] of Object.entries(profiles)) {
+    if (!p || typeof p !== 'object') continue;
+    const ps = p.session && typeof p.session === 'string' ? p.session.trim() : '';
+    if (ps) {
+      if (!session) session = ps;
+      else if (ps !== session) {
+        console.warn('[TelegramDeck] Old state had multiple Telegram sessions; using TELEGRAM_SESSION or first stored session.');
+      }
+    }
+    deckUsers[id] = {
+      id,
+      username: String(p.label || id.replace(/^p_/, 'user') || 'user').trim() || id,
+      followingAccounts: Array.isArray(p.followingAccounts) ? p.followingAccounts : [],
+      columns: Array.isArray(p.columns) && p.columns.length ? p.columns : [...DEFAULT_COLUMNS],
+      settings: { ...DEFAULT_PROFILE_SETTINGS, ...(p.settings && typeof p.settings === 'object' ? p.settings : {}) },
+    };
+  }
+
+  return {
+    lists,
+    telegram: { session },
+    deckUsers,
+  };
+}
+
 function load() {
   try {
     const dir = path.dirname(STATE_FILE);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     if (!fs.existsSync(STATE_FILE)) {
-      const envSession = process.env.TELEGRAM_SESSION || '';
-      if (envSession) {
-        return migrateLegacy({
-          lists: [],
-          followingAccounts: [],
-          columns: [...DEFAULT_COLUMNS],
-          settings: {},
-        });
-      }
-      return emptyState();
+      const legacy = migrateLegacyRaw(null);
+      const normalized = normalizeToDeckUsersShape(legacy);
+      if (normalized.telegram.session) save(normalized);
+      return normalized;
     }
     const raw = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
-    return migrateLegacy(raw);
+    const hadDeckUsers = raw.deckUsers && typeof raw.deckUsers === 'object';
+    const legacy = migrateLegacyRaw(raw);
+    const normalized = normalizeToDeckUsersShape(hadDeckUsers ? raw : legacy);
+    if (!hadDeckUsers && (legacy.profiles && Object.keys(legacy.profiles).length)) {
+      save(normalized);
+      console.log('[TelegramDeck] Migrated state: profiles → deck users + single telegram.session');
+    }
+    return normalized;
   } catch (err) {
     console.warn('⚠️  Could not load state, using defaults:', err.message);
     return emptyState();
@@ -96,64 +148,91 @@ function save(state) {
 }
 
 let _state = load();
+_state.lists.forEach((l) => {
+  if (!Array.isArray(l.accounts)) l.accounts = [];
+});
 
-function ensureProfileShape(p) {
-  if (!p || typeof p !== 'object') return null;
+function ensureDeckUserShape(u) {
+  if (!u || typeof u !== 'object') return null;
   return {
-    id: p.id,
-    label: p.label || 'User',
-    session: p.session || '',
-    followingAccounts: Array.isArray(p.followingAccounts) ? p.followingAccounts : [],
-    columns: Array.isArray(p.columns) && p.columns.length ? p.columns : [...DEFAULT_COLUMNS],
-    settings: { ...DEFAULT_PROFILE_SETTINGS, ...(p.settings && typeof p.settings === 'object' ? p.settings : {}) },
+    id: u.id,
+    username: u.username || 'user',
+    followingAccounts: Array.isArray(u.followingAccounts) ? u.followingAccounts : [],
+    columns: Array.isArray(u.columns) && u.columns.length ? u.columns : [...DEFAULT_COLUMNS],
+    settings: { ...DEFAULT_PROFILE_SETTINGS, ...(u.settings && typeof u.settings === 'object' ? u.settings : {}) },
   };
 }
 
-function getProfile(id) {
+function getDeckUser(id) {
   if (!id) return null;
-  const p = _state.profiles[id];
-  return ensureProfileShape(p);
+  const u = _state.deckUsers[id];
+  return ensureDeckUserShape(u);
+}
+
+/** Effective Telegram StringSession: env overrides stored (ops convenience). */
+function getTelegramSession() {
+  const env = (process.env.TELEGRAM_SESSION || '').trim();
+  if (env) return env;
+  return (_state.telegram && _state.telegram.session) ? String(_state.telegram.session).trim() : '';
+}
+
+function setTelegramSessionInState(sessionStr) {
+  if (!_state.telegram) _state.telegram = { session: '' };
+  _state.telegram.session = sessionStr || '';
+  save(_state);
 }
 
 const state = {
   get() { return _state; },
   save() { save(_state); },
 
-  listProfilesPublic() {
-    return Object.values(_state.profiles).map(p => ({
-      id: p.id,
-      label: p.label || 'User',
+  getDeckUser,
+
+  getTelegramSession,
+
+  /** True when the server can connect to Telegram */
+  isTelegramConfigured() {
+    return getTelegramSession().length > 20;
+  },
+
+  listDeckUsersPublic() {
+    return Object.values(_state.deckUsers).map(u => ({
+      id: u.id,
+      username: u.username || u.id,
     }));
   },
 
-  getProfileSession(profileId) {
-    const p = _state.profiles[profileId];
-    return p && p.session ? p.session : null;
+  findDeckUserByUsername(name) {
+    const n = String(name || '').trim().toLowerCase();
+    if (!n) return null;
+    for (const u of Object.values(_state.deckUsers)) {
+      if (String(u.username || '').toLowerCase() === n) return ensureDeckUserShape(u);
+    }
+    return null;
   },
 
-  addProfile({ id, label, session }) {
-    const pid = id || ('p_' + Date.now());
-    _state.profiles[pid] = ensureProfileShape({
-      id: pid,
-      label: label || 'User',
-      session,
+  addDeckUser({ id, username }) {
+    const uid = id || `d_${Date.now()}`;
+    _state.deckUsers[uid] = ensureDeckUserShape({
+      id: uid,
+      username: username || 'user',
       followingAccounts: [],
       columns: [...DEFAULT_COLUMNS],
       settings: { ...DEFAULT_PROFILE_SETTINGS },
     });
     save(_state);
-    return pid;
+    return uid;
   },
 
-  updateProfileLabel(profileId, label) {
-    const p = _state.profiles[profileId];
-    if (!p) return;
-    p.label = label || p.label;
+  updateDeckUsername(deckUserId, username) {
+    const u = _state.deckUsers[deckUserId];
+    if (!u) return;
+    u.username = username;
     save(_state);
   },
 
-  removeProfile(profileId) {
-    delete _state.profiles[profileId];
+  removeDeckUser(deckUserId) {
+    delete _state.deckUsers[deckUserId];
     save(_state);
   },
 
@@ -170,7 +249,7 @@ const state = {
   },
   deleteList(id) {
     _state.lists = _state.lists.filter(l => l.id !== id);
-    Object.values(_state.profiles).forEach(p => {
+    Object.values(_state.deckUsers).forEach(p => {
       p.columns = (p.columns || []).filter(c => !(c.type === 'list' && c.ref === id));
     });
     save(_state);
@@ -187,62 +266,59 @@ const state = {
     save(_state);
   },
 
-  // Following (per profile)
-  getFollowing(profileId) {
-    const p = getProfile(profileId);
-    return p ? p.followingAccounts : [];
+  getFollowing(deckUserId) {
+    const u = getDeckUser(deckUserId);
+    return u ? u.followingAccounts : [];
   },
-  follow(profileId, handle) {
-    const p = _state.profiles[profileId];
-    if (!p) throw new Error('Profile not found');
-    if (!p.followingAccounts.includes(handle)) {
-      p.followingAccounts.push(handle);
+  follow(deckUserId, handle) {
+    const u = _state.deckUsers[deckUserId];
+    if (!u) throw new Error('User not found');
+    if (!u.followingAccounts.includes(handle)) {
+      u.followingAccounts.push(handle);
       save(_state);
     }
   },
-  unfollow(profileId, handle) {
-    const p = _state.profiles[profileId];
-    if (!p) return;
-    p.followingAccounts = p.followingAccounts.filter(a => a !== handle);
-    p.columns = (p.columns || []).filter(c => !(c.type === 'account' && c.ref === handle));
+  unfollow(deckUserId, handle) {
+    const u = _state.deckUsers[deckUserId];
+    if (!u) return;
+    u.followingAccounts = u.followingAccounts.filter(a => a !== handle);
+    u.columns = (u.columns || []).filter(c => !(c.type === 'account' && c.ref === handle));
     save(_state);
   },
 
-  // Columns (per profile)
-  getColumns(profileId) {
-    const p = getProfile(profileId);
-    return p ? p.columns : [...DEFAULT_COLUMNS];
+  getColumns(deckUserId) {
+    const u = getDeckUser(deckUserId);
+    return u ? u.columns : [...DEFAULT_COLUMNS];
   },
-  setColumns(profileId, cols) {
-    const p = _state.profiles[profileId];
-    if (!p) throw new Error('Profile not found');
-    p.columns = cols;
+  setColumns(deckUserId, cols) {
+    const u = _state.deckUsers[deckUserId];
+    if (!u) throw new Error('User not found');
+    u.columns = cols;
     save(_state);
   },
-  addColumn(profileId, col) {
-    const p = _state.profiles[profileId];
-    if (!p) throw new Error('Profile not found');
-    if (!p.columns.find(c => c.id === col.id)) {
-      p.columns.push(col);
+  addColumn(deckUserId, col) {
+    const u = _state.deckUsers[deckUserId];
+    if (!u) throw new Error('User not found');
+    if (!u.columns.find(c => c.id === col.id)) {
+      u.columns.push(col);
       save(_state);
     }
   },
-  removeColumn(profileId, id) {
-    const p = _state.profiles[profileId];
-    if (!p) return;
-    p.columns = p.columns.filter(c => c.id !== id);
+  removeColumn(deckUserId, id) {
+    const u = _state.deckUsers[deckUserId];
+    if (!u) return;
+    u.columns = u.columns.filter(c => c.id !== id);
     save(_state);
   },
 
-  // Settings (per profile)
-  getSettings(profileId) {
-    const p = getProfile(profileId);
-    return p ? { ...p.settings } : { ...DEFAULT_PROFILE_SETTINGS };
+  getSettings(deckUserId) {
+    const u = getDeckUser(deckUserId);
+    return u ? { ...u.settings } : { ...DEFAULT_PROFILE_SETTINGS };
   },
-  updateSettings(profileId, patch) {
-    const p = _state.profiles[profileId];
-    if (!p) throw new Error('Profile not found');
-    p.settings = { ...p.settings, ...patch };
+  updateSettings(deckUserId, patch) {
+    const u = _state.deckUsers[deckUserId];
+    if (!u) throw new Error('User not found');
+    u.settings = { ...u.settings, ...patch };
     save(_state);
   },
 };

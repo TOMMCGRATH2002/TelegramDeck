@@ -198,6 +198,12 @@
   .new-posts-btn.visible{display:block;animation:slideDown 0.2s ease;}
   @keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
   .empty-state{padding:40px 20px;text-align:center;color:var(--text3);}
+  .login-gate{position:fixed;inset:0;z-index:20000;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;}
+  .login-gate[hidden]{display:none!important;}
+  .login-card{width:100%;max-width:400px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:28px 24px;}
+  .login-card h1{font-size:22px;font-weight:700;margin-bottom:8px;}
+  .login-sub{font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:20px;}
+  .login-banner{font-size:13px;color:var(--danger);background:rgba(244,33,46,0.08);border:1px solid rgba(244,33,46,0.25);padding:12px;border-radius:8px;margin-bottom:16px;line-height:1.45;}
   .empty-state svg{margin-bottom:12px;opacity:0.4;}
   .empty-state p{font-size:13px;line-height:1.5;}
   .loading-state{padding:20px;display:flex;flex-direction:column;gap:10px;}
@@ -261,6 +267,19 @@
 </style>
 </head>
 <body>
+<div id="login-gate" class="login-gate" hidden>
+  <div class="login-card">
+    <h1>TelegramDeck</h1>
+    <p class="login-sub">Pick a <strong>deck username</strong> to save your follows and columns. Everyone on this server shares the same Telegram connection; your name only chooses what you see.</p>
+    <div id="login-telegram-down" class="login-banner" hidden>This server is not connected to Telegram yet. The admin must set <code style="font-size:11px">TELEGRAM_SESSION</code> in the server environment and restart.</div>
+    <div class="field"><label>New — create a username</label><input id="inp-register-username" type="text" placeholder="e.g. alice" maxlength="32" autocomplete="username"/></div>
+    <button type="button" class="btn-primary" style="width:100%;margin-bottom:16px" onclick="submitRegister()">Create deck</button>
+    <div class="sep"></div>
+    <div class="field"><label>Returning — sign in</label><input id="inp-login-username" type="text" placeholder="Your username" maxlength="32" autocomplete="username"/></div>
+    <button type="button" class="btn-ghost" style="width:100%" onclick="submitLogin()">Sign in</button>
+    <p id="login-err" style="font-size:12px;color:var(--danger);margin-top:14px;min-height:18px"></p>
+  </div>
+</div>
 <div class="app-frame">
 
 <!-- ── SIDEBAR ── -->
@@ -324,14 +343,10 @@
   <div class="panel">
     <button class="panel-close" onclick="closePanel('panel-account')">✕</button>
     <h2>Account</h2>
-    <div class="section-hdr" style="padding-top:0">Telegram users</div>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.45"><strong>Lists</strong> (and accounts inside them) are <strong>shared</strong> for everyone on this server. Each Telegram user has their own <strong>Following</strong> and <strong>Deck</strong> columns.</p>
+    <div class="section-hdr" style="padding-top:0">Deck usernames</div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.45"><strong>Lists</strong> are <strong>shared</strong> on this server. Each deck username has its own <strong>Following</strong> and <strong>Deck</strong> columns. Telegram runs once on the server (admin <code style="font-size:11px">TELEGRAM_SESSION</code>).</p>
     <div id="profiles-switcher" style="margin-bottom:14px"></div>
-    <div class="section-hdr">Add Telegram user</div>
-    <p style="font-size:12px;color:var(--text3);margin-bottom:8px">Run <code style="font-size:11px;background:var(--bg3);padding:2px 6px;border-radius:4px">npm run auth</code> and paste the session string here.</p>
-    <div class="field" style="margin-bottom:8px"><label>Label (optional)</label><input id="inp-profile-label" placeholder="e.g. @myname"></div>
-    <div class="field" style="margin-bottom:8px"><label>Session string</label><textarea id="inp-profile-session" rows="3" style="resize:vertical;min-height:64px;font-family:'JetBrains Mono',monospace;font-size:11px" placeholder="Long string starting with 1AgA…"></textarea></div>
-    <button class="btn-primary" type="button" onclick="addTelegramProfile()" style="width:100%;margin-bottom:14px">Add user</button>
+    <button type="button" class="btn-ghost" style="width:100%;margin-bottom:14px" onclick="signOutDeck()">Sign out (switch user)</button>
     <div class="sep"></div>
     <div class="profile-card">
       <div class="profile-avatar" id="pa-avatar">
@@ -339,13 +354,12 @@
         <span id="pa-letter">?</span>
       </div>
       <div class="profile-name" id="pa-name">Loading…</div>
-      <div class="profile-handle" id="pa-handle">@—</div>
+      <div class="profile-handle" id="pa-handle">Your deck on this server</div>
     </div>
-    <div class="profile-detail"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.72 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.63 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.64a16 16 0 0 0 6 6l.96-1.21a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21.7 16z"/></svg><span id="pa-phone">—</span></div>
     <div class="profile-detail"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>App version: <strong>TelegramDeck v1.0.0</strong></div>
     <div class="profile-detail"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20a6 6 0 0 0-12 0"/><circle cx="12" cy="10" r="4"/></svg>Live updates: <strong><span id="pa-status" style="color:var(--warn)">●</span> Connecting…</strong></div>
     <div style="margin-top:16px" class="row-btns">
-      <button class="btn-danger" type="button" onclick="removeActiveTelegramUser()">Remove this user…</button>
+      <button class="btn-danger" type="button" onclick="removeMyDeck()">Delete my deck…</button>
       <button class="btn-primary" onclick="closePanel('panel-account')">Close</button>
     </div>
   </div>
@@ -459,29 +473,47 @@ let pendingLive     = {}; // colId -> count
 let wsPingTimer     = null;
 let columnPollTimer = null;
 let videoIo         = null;
-let profilesList    = [];
-let activeProfileId = null;
+let profilesList    = []; // deck users from API { id, username }
+let activeProfileId = null; // active deck user id (session)
 let wsGen           = 0;
 let wsReconnectTimer = null;
 
 // ══════════════════════════════════════════════════════════
 //  BOOT
 // ══════════════════════════════════════════════════════════
+function setLoginFormEnabled(on) {
+  document.querySelectorAll('#login-gate button').forEach((b) => { b.disabled = !on; });
+  const a = document.getElementById('inp-register-username');
+  const b = document.getElementById('inp-login-username');
+  if (a) a.disabled = !on;
+  if (b) b.disabled = !on;
+}
+
 async function boot() {
-  let sess = { ok: false, profiles: [], activeProfileId: null };
+  let sess = { ok: false, deckUsers: [], activeDeckUserId: null, telegramReady: false };
   try {
     const r = await fetch(API + '/session', { credentials: 'include' });
     sess = await r.json();
   } catch (_) {}
-  profilesList = sess.profiles || [];
-  activeProfileId = sess.activeProfileId || null;
+  profilesList = sess.deckUsers || [];
+  activeProfileId = sess.activeDeckUserId || null;
+  const gate = document.getElementById('login-gate');
+  const tgBanner = document.getElementById('login-telegram-down');
 
-  if (!profilesList.length) {
-    document.getElementById('columns-wrap').innerHTML = '<div class="empty-state" style="padding:48px 24px;max-width:420px;margin:0 auto"><p style="font-size:15px;font-weight:600;margin-bottom:8px">Add a Telegram user</p><p style="font-size:13px;color:var(--text2);line-height:1.5">Open <strong>Account</strong> from the menu, paste a session string from <code style="font-size:11px">npm run auth</code>, then click <strong>Add user</strong>. Lists are shared; each user keeps their own follows and deck.</p></div>';
-    openPanel('panel-account');
-    renderProfilesSwitcher();
+  if (!sess.telegramReady) {
+    if (gate) gate.hidden = false;
+    if (tgBanner) tgBanner.hidden = false;
+    setLoginFormEnabled(false);
     return;
   }
+  if (tgBanner) tgBanner.hidden = true;
+  setLoginFormEnabled(true);
+
+  if (!activeProfileId) {
+    if (gate) gate.hidden = false;
+    return;
+  }
+  if (gate) gate.hidden = true;
 
   await loadDeckStateForActiveProfile();
   adjustPopoutChrome();
@@ -491,12 +523,43 @@ async function boot() {
   startColumnPolling();
 }
 
+async function submitRegister() {
+  const el = document.getElementById('login-err');
+  if (el) el.textContent = '';
+  const u = document.getElementById('inp-register-username').value.trim();
+  try {
+    await apiFetch('/session/register', { method: 'POST', body: { username: u } });
+    location.reload();
+  } catch (e) {
+    if (el) el.textContent = e.message || 'Error';
+  }
+}
+
+async function submitLogin() {
+  const el = document.getElementById('login-err');
+  if (el) el.textContent = '';
+  const u = document.getElementById('inp-login-username').value.trim();
+  try {
+    await apiFetch('/session/login', { method: 'POST', body: { username: u } });
+    location.reload();
+  } catch (e) {
+    if (el) el.textContent = e.message || 'Error';
+  }
+}
+
+async function signOutDeck() {
+  try {
+    await fetch(API + '/session/logout', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  } catch (_) {}
+  location.reload();
+}
+
 async function loadDeckStateForActiveProfile() {
   meProfile = null;
   const paName = document.getElementById('pa-name');
   const paHandle = document.getElementById('pa-handle');
   if (paName) paName.textContent = 'Loading…';
-  if (paHandle) paHandle.textContent = '@—';
+  if (paHandle) paHandle.textContent = 'Your deck on this server';
   try {
     const s = await apiFetch('/settings');
     settings = s.settings;
@@ -545,7 +608,7 @@ async function apiFetch(path, opts = {}) {
 //  WEBSOCKET — live message push
 // ══════════════════════════════════════════════════════════
 async function connectWebSocket() {
-  if (!profilesList.length) return;
+  if (!activeProfileId) return;
   clearTimeout(wsReconnectTimer);
   wsReconnectTimer = null;
   const myGen = ++wsGen;
@@ -728,8 +791,8 @@ async function refreshSessionProfiles() {
     const r = await fetch(API + '/session', { credentials: 'include' });
     const d = await r.json();
     if (d.ok) {
-      profilesList = d.profiles || [];
-      activeProfileId = d.activeProfileId || (profilesList[0] && profilesList[0].id) || null;
+      profilesList = d.deckUsers || [];
+      activeProfileId = d.activeDeckUserId || null;
     }
   } catch (_) {}
   renderProfilesSwitcher();
@@ -739,16 +802,16 @@ function renderProfilesSwitcher() {
   const el = document.getElementById('profiles-switcher');
   if (!el) return;
   if (!profilesList.length) {
-    el.innerHTML = '<p style="font-size:13px;color:var(--text3)">No users yet — add a session string below.</p>';
+    el.innerHTML = '<p style="font-size:13px;color:var(--text3)">No decks yet — sign out and create a username on the welcome screen.</p>';
     return;
   }
   el.innerHTML = profilesList.map((p) => `
     <div class="list-item" style="cursor:default;padding:8px 10px;margin-bottom:4px">
       <label style="flex:1;display:flex;align-items:center;gap:10px;cursor:pointer;margin:0">
         <input type="radio" name="deck-profile" value="${escAttr(p.id)}" ${p.id === activeProfileId ? 'checked' : ''} onchange="switchDeckProfile('${escAttr(p.id)}')"/>
-        <span class="li-name">${escHtml(p.label)}</span>
+        <span class="li-name">${escHtml(p.username || p.id)}</span>
       </label>
-      <button type="button" class="icon-btn danger" title="Remove user" onclick="removeTelegramProfile('${escAttr(p.id)}')">
+      <button type="button" class="icon-btn danger" title="Delete this deck" onclick="removeTelegramProfile('${escAttr(p.id)}')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="m19 6-.867 14.142A2 2 0 0 1 16.138 22H7.862a2 2 0 0 1-1.995-1.858L5 6"/></svg>
       </button>
     </div>`).join('');
@@ -757,7 +820,7 @@ function renderProfilesSwitcher() {
 async function switchDeckProfile(id) {
   if (!id || id === activeProfileId) return;
   try {
-    await apiFetch('/profile/active', { method: 'POST', body: { profileId: id } });
+    await apiFetch('/session/active', { method: 'POST', body: { deckUserId: id } });
     activeProfileId = id;
     await loadDeckStateForActiveProfile();
     renderProfilesSwitcher();
@@ -771,56 +834,18 @@ async function switchDeckProfile(id) {
   }
 }
 
-async function addTelegramProfile() {
-  const sessionString = document.getElementById('inp-profile-session').value.trim();
-  const label = document.getElementById('inp-profile-label').value.trim();
-  if (!sessionString) { showToast('Paste the session string', true); return; }
-  try {
-    await apiFetch('/profiles', { method: 'POST', body: { sessionString, label: label || undefined } });
-    document.getElementById('inp-profile-session').value = '';
-    document.getElementById('inp-profile-label').value = '';
-    await refreshSessionProfiles();
-    const wasEmpty = !document.querySelector('#columns-wrap .col');
-    await loadDeckStateForActiveProfile();
-    if (wasEmpty) {
-      document.getElementById('columns-wrap').innerHTML = '';
-      renderAllColumns();
-      connectWebSocket();
-      startRelativeTimeTicker();
-      startColumnPolling();
-    } else {
-      renderAllColumns();
-      if (ws) { try { ws.close(); } catch (_) {} }
-      connectWebSocket();
-    }
-    showToast('Telegram user added');
-  } catch (e) {
-    showToast(e.message, true);
-  }
-}
-
 async function removeTelegramProfile(id) {
   if (!id) return;
-  if (!confirm('Remove this Telegram user from the server? Their deck and follows are deleted; shared lists are kept.')) return;
+  if (!confirm('Delete this deck? Its follows and columns are removed; shared lists stay on the server.')) return;
   try {
-    await apiFetch('/profiles/' + encodeURIComponent(id), { method: 'DELETE' });
-    await refreshSessionProfiles();
-    if (!profilesList.length) {
-      location.reload();
-      return;
-    }
-    await loadDeckStateForActiveProfile();
-    renderProfilesSwitcher();
-    renderAllColumns();
-    if (ws) { try { ws.close(); } catch (_) {} }
-    connectWebSocket();
-    showToast('User removed');
+    await apiFetch('/deck-users/' + encodeURIComponent(id), { method: 'DELETE' });
+    location.reload();
   } catch (e) {
     showToast(e.message, true);
   }
 }
 
-function removeActiveTelegramUser() {
+function removeMyDeck() {
   if (activeProfileId) removeTelegramProfile(activeProfileId);
 }
 
@@ -867,9 +892,8 @@ function closePanel(id) {
 function setProfilePanelTelegramError(message) {
   const short = (message || 'Unknown error').replace(/\s+/g, ' ').trim();
   const clip = short.length > 140 ? short.slice(0, 137) + '…' : short;
-  document.getElementById('pa-name').textContent = 'Telegram not connected';
+  document.getElementById('pa-name').textContent = 'Connection issue';
   document.getElementById('pa-handle').textContent = clip;
-  document.getElementById('pa-phone').textContent = '—';
   const letterEl = document.getElementById('pa-letter');
   const imgEl = document.getElementById('pa-avatar-img');
   letterEl.textContent = '!';
@@ -890,25 +914,17 @@ function updateProfilePanel() {
     if (strong && strong.childNodes[1]) strong.childNodes[1].textContent = ' Connecting…';
   }
   if (!meProfile) return;
-  const name = [meProfile.firstName, meProfile.lastName].filter(Boolean).join(' ') || meProfile.username || 'You';
-  document.getElementById('pa-name').textContent = name;
+  const deckName = meProfile.deckUsername || 'Your deck';
+  document.getElementById('pa-name').textContent = deckName;
   const letterEl = document.getElementById('pa-letter');
   const imgEl = document.getElementById('pa-avatar-img');
-  letterEl.textContent = name.charAt(0).toUpperCase();
+  letterEl.textContent = deckName.charAt(0).toUpperCase();
   letterEl.style.display = '';
-  imgEl.onload = null;
-  imgEl.onerror = null;
-  if (meProfile.photoUrl && meProfile.username) {
-    imgEl.style.display = 'block';
-    imgEl.onload = () => { letterEl.style.display = 'none'; };
-    imgEl.onerror = () => { imgEl.style.display = 'none'; letterEl.style.display = ''; };
-    imgEl.src = meProfile.photoUrl;
-  } else {
-    imgEl.removeAttribute('src');
-    imgEl.style.display = 'none';
-  }
-  document.getElementById('pa-handle').textContent = meProfile.username ? '@'+meProfile.username : '—';
-  document.getElementById('pa-phone').textContent = meProfile.phone || '—';
+  imgEl.removeAttribute('src');
+  imgEl.style.display = 'none';
+  document.getElementById('pa-handle').textContent = meProfile.telegramConnected
+    ? 'Server Telegram connection is active (your personal Telegram account is not shown here).'
+    : 'Checking connection…';
 }
 
 // ══════════════════════════════════════════════════════════

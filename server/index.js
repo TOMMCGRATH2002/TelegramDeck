@@ -187,19 +187,18 @@ app.get('*', (req, res) => {
 (async () => {
   console.log('\n🚀  TelegramDeck starting...\n');
 
-  const profileCount = Object.keys(state.get().profiles || {}).length;
-  if (!profileCount) {
-    console.warn('⚠️  No Telegram users in data/state.json yet.');
-    console.warn('    Add one: set TELEGRAM_SESSION in .env and restart once (migrates), or open the app → Account → Add Telegram user.\n');
+  if (!state.isTelegramConfigured()) {
+    console.warn('⚠️  TELEGRAM_SESSION is not set (or too short).');
+    console.warn('    Set it in .env on the server (output of npm run auth), then restart.\n');
   }
 
   if (process.env.TELEGRAMDECK_TRACE !== '0') {
     const st = state.get();
     const listSlots = st.lists.reduce((n, l) => n + l.accounts.length, 0);
-    const profN = Object.keys(st.profiles || {}).length;
+    const deckN = Object.keys(st.deckUsers || {}).length;
     console.log(
       '[TelegramDeck trace] deck storage:',
-      profN, 'Telegram user(s), shared lists:', st.lists.length, `(${listSlots} list slots)`
+      deckN, 'deck username(s), shared lists:', st.lists.length, `(${listSlots} list slots)`
     );
   }
 

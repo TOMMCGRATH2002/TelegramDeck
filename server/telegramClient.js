@@ -1,6 +1,6 @@
 /**
  * telegramClient.js
- * One GramJS TelegramClient per deck profile (each logged-in Telegram user).
+ * One GramJS TelegramClient for the whole server (single TELEGRAM_SESSION).
  */
 
 const { TelegramClient, Api } = require('telegram');
@@ -15,8 +15,11 @@ const API_HASH = process.env.TELEGRAM_API_HASH;
 
 const MAX_MEDIA_BYTES = 45 * 1024 * 1024;
 
+/** Single MTProto client key (session from state.getTelegramSession()). */
+const TG_SINGLETON = '__tg__';
+
 const clients = new Map();
-/** One in-flight connect promise per profile — prevents parallel GramJS clients with the same session (Telegram 406 AUTH_KEY_DUPLICATED). */
+/** One in-flight connect promise — prevents parallel GramJS clients (Telegram 406 AUTH_KEY_DUPLICATED). */
 const connectLocks = new Map();
 const liveListeners = [];
 
@@ -34,15 +37,17 @@ function clientOptions() {
   return {
     connectionRetries: 5,
     retryDelay: 2000,
-    autoReconnect: true,
+    // Server uses one explicit client per profile; autoReconnect can overlap with
+    // ensureConnected and trigger Telegram 406 AUTH_KEY_DUPLICATED.
+    autoReconnect: false,
     useWSS,
     timeout: timeoutSec,
   };
 }
 
-function emitLive(profileId, message) {
+function emitLive(message) {
   liveListeners.forEach((fn) => {
-    try { fn({ profileId, message }); } catch (_) {}
+    try { fn(message); } catch (_) {}
   });
 }
 
@@ -51,15 +56,17 @@ function onLiveMessage(fn) {
   return () => { const i = liveListeners.indexOf(fn); if (i >= 0) liveListeners.splice(i, 1); };
 }
 
-async function ensureConnected(profileId) {
+async function ensureConnected(_unusedDeckUserId) {
   const state = require('./state');
-  const sessionStr = state.getProfileSession(profileId);
-  if (!sessionStr) throw new Error('Unknown profile or missing Telegram session');
+  const sessionStr = state.getTelegramSession();
+  if (!sessionStr) {
+    throw new Error('Telegram is not configured on this server (set TELEGRAM_SESSION in .env).');
+  }
 
-  let client = clients.get(profileId);
+  let client = clients.get(TG_SINGLETON);
   if (client && client.connected) return client;
 
-  const existingLock = connectLocks.get(profileId);
+  const existingLock = connectLocks.get(TG_SINGLETON);
   if (existingLock) return existingLock;
 
   let resolveConnect;
@@ -68,18 +75,18 @@ async function ensureConnected(profileId) {
     resolveConnect = resolve;
     rejectConnect = reject;
   });
-  connectLocks.set(profileId, done);
+  connectLocks.set(TG_SINGLETON, done);
 
   (async () => {
     try {
-      let c = clients.get(profileId);
+      let c = clients.get(TG_SINGLETON);
       if (c && c.connected) {
         resolveConnect(c);
         return;
       }
       if (c) {
         try { await c.destroy(); } catch (_) {}
-        clients.delete(profileId);
+        clients.delete(TG_SINGLETON);
       }
 
       const session = new StringSession(sessionStr);
@@ -89,39 +96,39 @@ async function ensureConnected(profileId) {
       const authorised = await c.isUserAuthorized();
       if (!authorised) {
         try { await c.destroy(); } catch (_) {}
-        clients.delete(profileId);
-        throw new Error('Telegram session not authorised — run npm run auth and paste a new session string.');
+        clients.delete(TG_SINGLETON);
+        throw new Error('Telegram session not authorised — set TELEGRAM_SESSION from npm run auth on the server.');
       }
 
-      console.log(`✅  Telegram MTProto connected for profile ${profileId}`);
+      console.log('✅  Telegram MTProto connected (server session)');
 
       c.addEventHandler(async (event) => {
         try {
           const msg = event.message;
           if (!msg || !msg.peerId) return;
           const formatted = await formatSingleLiveMessage(msg, c);
-          if (formatted) emitLive(profileId, formatted);
+          if (formatted) emitLive(formatted);
         } catch (_) {}
       }, new NewMessage({}));
 
-      clients.set(profileId, c);
+      clients.set(TG_SINGLETON, c);
       resolveConnect(c);
     } catch (err) {
       rejectConnect(err);
     } finally {
-      connectLocks.delete(profileId);
+      connectLocks.delete(TG_SINGLETON);
     }
   })();
 
   return done;
 }
 
-async function destroyClient(profileId) {
-  connectLocks.delete(profileId);
-  const c = clients.get(profileId);
+async function destroyClient(_unused) {
+  connectLocks.delete(TG_SINGLETON);
+  const c = clients.get(TG_SINGLETON);
   if (!c) return;
   try { await c.destroy(); } catch (_) {}
-  clients.delete(profileId);
+  clients.delete(TG_SINGLETON);
 }
 
 async function destroyAllClients() {
@@ -133,10 +140,20 @@ async function destroyAllClients() {
   }
 }
 
-/** Validate a pasted session string (does not register it). */
+/** Validate a session string without persisting (e.g. before saving to server .env). */
 async function testNewSession(sessionString) {
   if (!sessionString || typeof sessionString !== 'string') throw new Error('session string required');
-  const session = new StringSession(sessionString.trim());
+  const trimmed = sessionString.trim();
+  const st = require('./state');
+  if (trimmed === st.getTelegramSession()) {
+    const client = await ensureConnected();
+    const me = await client.getMe();
+    const label = [me.firstName, me.lastName].filter(Boolean).join(' ').trim()
+      || (me.username ? `@${me.username}` : `User ${me.id}`);
+    return { label, username: me.username || '', id: me.id.toString() };
+  }
+
+  const session = new StringSession(trimmed);
   const client = new TelegramClient(session, API_ID, API_HASH, {
     connectionRetries: 2,
     retryDelay: 1500,

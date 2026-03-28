@@ -15,14 +15,14 @@ const { translateToEnglish } = require('./translate');
 const {
   isValidPublicUsername,
   isValidMessageId,
-  isValidProfileId,
-  isValidSessionString,
-  sanitizeProfileLabel,
+  isValidDeckUserId,
+  isValidDeckUsername,
+  sanitizeDeckUsername,
 } = require('./security');
 const mediaCache = require('./mediaCache');
 const { sendBufferWithRange } = require('./mediaResponse');
 
-const SESSION_PROFILE_KEY = 'telegramProfileId';
+const SESSION_DECK_USER_KEY = 'deckUserId';
 
 const mediaRate = rateLimit({
   windowMs: 60 * 1000,
@@ -38,13 +38,13 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-const profileCreateLimiter = rateLimit({
+const deckRegisterLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: 25,
+  max: 40,
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {
-    res.status(429).json({ ok: false, error: 'Too many profile creations from this IP — try again later' });
+    res.status(429).json({ ok: false, error: 'Too many new deck names from this IP — try again later' });
   },
 });
 
@@ -92,127 +92,143 @@ async function maybeTranslate(messages, autoTranslate) {
   }));
 }
 
-function pickProfile(req, res, next) {
+function pickDeckUser(req, res, next) {
   try {
-    const profiles = state.listProfilesPublic();
-    if (profiles.length && !req.session[SESSION_PROFILE_KEY]) {
-      req.session[SESSION_PROFILE_KEY] = profiles[0].id;
-    }
-    req.telegramProfileId = req.session[SESSION_PROFILE_KEY] || null;
+    req.deckUserId = req.session[SESSION_DECK_USER_KEY] || null;
   } catch (_) {
-    req.telegramProfileId = null;
+    req.deckUserId = null;
   }
   next();
 }
 
-function requireProfile(req, res, next) {
-  if (!req.telegramProfileId) {
-    return fail(res, 'Add or select a Telegram user (Account → Telegram profiles).', 401);
+function requireDeckUser(req, res, next) {
+  if (!req.deckUserId) {
+    return fail(res, 'Sign in with a deck username first.', 401);
   }
   next();
 }
 
-router.use(pickProfile);
+router.use(pickDeckUser);
 router.use(apiLimiter);
 
-// ─── Session & multi-user profiles ───────────────────────────
+// ─── Session & deck users (per-browser deck; one Telegram session on server) ──
 
 router.get('/session', (req, res) => {
   ok(res, {
-    profiles:       state.listProfilesPublic(),
-    activeProfileId: req.telegramProfileId,
+    deckUsers:         state.listDeckUsersPublic(),
+    activeDeckUserId:  req.deckUserId || null,
+    telegramReady:     state.isTelegramConfigured(),
   });
 });
 
-router.post('/profiles', async (req, res) => {
-  const { sessionString, label } = req.body || {};
-  if (!sessionString || typeof sessionString !== 'string') {
-    return fail(res, 'sessionString is required (paste output from npm run auth)');
+router.post('/session/register', deckRegisterLimiter, (req, res) => {
+  const raw = (req.body && req.body.username) != null ? String(req.body.username) : '';
+  const username = sanitizeDeckUsername(raw);
+  if (!isValidDeckUsername(username)) {
+    return fail(res, 'Username must be 2–32 characters: letters, digits, underscore only.', 400);
   }
-  let meta;
-  try {
-    meta = await tg.testNewSession(sessionString.trim());
-  } catch (err) {
-    return fail(res, err.message || 'Invalid Telegram session', 400);
+  if (state.findDeckUserByUsername(username)) {
+    return fail(res, 'That username is already taken. Pick another or use Sign in.', 400);
   }
-  const id = state.addProfile({
-    label: label || meta.label || 'User',
-    session: sessionString.trim(),
-  });
-  if (!req.session[SESSION_PROFILE_KEY]) req.session[SESSION_PROFILE_KEY] = id;
+  const id = state.addDeckUser({ username });
+  req.session[SESSION_DECK_USER_KEY] = id;
   req.session.save((err) => {
     if (err) return fail500(res, err);
-    ok(res, { profile: { id, label: cleanLabel || meta.label || 'User' } });
+    ok(res, { deckUser: { id, username } });
   });
 });
 
-router.post('/profile/active', (req, res) => {
-  const { profileId } = req.body || {};
-  if (!isValidProfileId(profileId)) return fail(res, 'Invalid profile id', 400);
-  const profiles = state.get().profiles || {};
-  if (!profiles[profileId]) return fail(res, 'Unknown profile', 400);
-  req.session[SESSION_PROFILE_KEY] = profileId;
+router.post('/session/login', (req, res) => {
+  const raw = (req.body && req.body.username) != null ? String(req.body.username) : '';
+  const username = sanitizeDeckUsername(raw);
+  if (!username) return fail(res, 'username is required', 400);
+  const user = state.findDeckUserByUsername(username);
+  if (!user) return fail(res, 'No deck with that username. Create one first.', 404);
+  req.session[SESSION_DECK_USER_KEY] = user.id;
   req.session.save((err) => {
     if (err) return fail500(res, err);
-    ok(res, { activeProfileId: profileId });
+    ok(res, { deckUser: { id: user.id, username: user.username } });
   });
 });
 
-router.delete('/profiles/:id', async (req, res) => {
+router.post('/session/logout', (req, res) => {
+  delete req.session[SESSION_DECK_USER_KEY];
+  req.session.save((err) => {
+    if (err) return fail500(res, err);
+    ok(res, {});
+  });
+});
+
+router.post('/session/active', (req, res) => {
+  const { deckUserId } = req.body || {};
+  if (!isValidDeckUserId(deckUserId)) return fail(res, 'Invalid deck user id', 400);
+  if (!state.getDeckUser(deckUserId)) return fail(res, 'Unknown deck user', 400);
+  req.session[SESSION_DECK_USER_KEY] = deckUserId;
+  req.session.save((err) => {
+    if (err) return fail500(res, err);
+    ok(res, { activeDeckUserId: deckUserId });
+  });
+});
+
+router.delete('/deck-users/:id', requireDeckUser, async (req, res) => {
   const id = req.params.id;
-  if (!isValidProfileId(id)) return fail(res, 'Invalid profile id', 400);
-  if (!state.get().profiles[id]) return fail(res, 'Unknown profile', 404);
-  await tg.destroyClient(id);
+  if (!isValidDeckUserId(id)) return fail(res, 'Invalid deck user id', 400);
+  if (!state.getDeckUser(id)) return fail(res, 'Unknown deck user', 404);
+  if (req.deckUserId !== id) return fail(res, 'You can only remove your own deck.', 403);
   mediaCache.invalidateForProfile(id);
-  state.removeProfile(id);
-  if (req.session[SESSION_PROFILE_KEY] === id) {
-    const rest = state.listProfilesPublic();
-    req.session[SESSION_PROFILE_KEY] = rest[0] ? rest[0].id : null;
-  }
+  state.removeDeckUser(id);
+  req.session[SESSION_DECK_USER_KEY] = null;
   req.session.save((err) => {
     if (err) return fail500(res, err);
-    ok(res, { removed: id, activeProfileId: req.session[SESSION_PROFILE_KEY] || null });
+    ok(res, { removed: id });
   });
 });
 
-router.get('/ws-token', wsTokenLimiter, requireProfile, (req, res) => {
-  ok(res, { token: wsAuth.mint(req.telegramProfileId) });
+router.get('/ws-token', wsTokenLimiter, requireDeckUser, (req, res) => {
+  ok(res, { token: wsAuth.mint(req.deckUserId) });
 });
 
 // ─── Account / Telegram user ─────────────────────────────────
 
-router.get('/me', requireProfile, async (req, res) => {
+router.get('/me', requireDeckUser, async (req, res) => {
   try {
-    const user = await tg.getMe(req.telegramProfileId);
-    ok(res, { user });
+    await tg.ensureConnected(req.deckUserId);
+    const du = state.getDeckUser(req.deckUserId);
+    ok(res, {
+      user: {
+        deckUsername: du ? du.username : '',
+        deckUserId: req.deckUserId,
+        telegramConnected: true,
+      },
+    });
   } catch (err) {
     fail500(res, err);
   }
 });
 
-router.get('/entity/:handle', requireProfile, async (req, res) => {
+router.get('/entity/:handle', requireDeckUser, async (req, res) => {
   try {
     const handle = normaliseHandle(req.params.handle);
-    const info   = await tg.getEntityInfo(req.telegramProfileId, handle);
+    const info   = await tg.getEntityInfo(req.deckUserId, handle);
     ok(res, { entity: info });
   } catch (err) {
     fail(res, err.message);
   }
 });
 
-router.get('/avatar/:username', mediaRate, requireProfile, async (req, res) => {
+router.get('/avatar/:username', mediaRate, requireDeckUser, async (req, res) => {
   try {
     const u = req.params.username;
     if (!isValidPublicUsername(u)) return res.status(400).end();
     const handle = normaliseHandle(u);
-    const { buffer, mime } = await tg.downloadProfilePhoto(req.telegramProfileId, handle);
+    const { buffer, mime } = await tg.downloadProfilePhoto(req.deckUserId, handle);
     sendBufferWithRange(req, res, buffer, mime, 'public, max-age=604800');
   } catch (_) {
     res.status(404).end();
   }
 });
 
-router.get('/media/:username/:msgId', mediaRate, requireProfile, async (req, res) => {
+router.get('/media/:username/:msgId', mediaRate, requireDeckUser, async (req, res) => {
   try {
     const u = req.params.username;
     const msgId = req.params.msgId;
@@ -220,13 +236,13 @@ router.get('/media/:username/:msgId', mediaRate, requireProfile, async (req, res
       return res.status(400).end();
     }
     const handle = normaliseHandle(u);
-    const cacheKey = `${req.telegramProfileId}|${handle}|${msgId}`;
+    const cacheKey = `${req.deckUserId}|${handle}|${msgId}`;
     const cached = mediaCache.get(cacheKey);
     if (cached) {
       sendBufferWithRange(req, res, cached.buffer, cached.mime, 'public, max-age=604800, immutable');
       return;
     }
-    const ctx = await tg.loadMessageMediaContext(req.telegramProfileId, handle, msgId);
+    const ctx = await tg.loadMessageMediaContext(req.deckUserId, handle, msgId);
     const streamed = await tg.pipeVideoMessageToResponse(req, res, ctx.client, ctx.msg);
     if (streamed) return;
     const { buffer, mime } = await tg.downloadMessageMediaFromMessage(ctx.client, ctx.msg);
@@ -239,9 +255,9 @@ router.get('/media/:username/:msgId', mediaRate, requireProfile, async (req, res
 
 // ─── Messages ────────────────────────────────────────────────
 
-router.get('/messages/batch', requireProfile, async (req, res) => {
+router.get('/messages/batch', requireDeckUser, async (req, res) => {
   const t0 = Date.now();
-  const pid = req.telegramProfileId;
+  const pid = req.deckUserId;
   try {
     let handles = req.query.handles;
     if (handles == null && req.query['handles[]'] != null) handles = req.query['handles[]'];
@@ -302,9 +318,9 @@ router.get('/messages/batch', requireProfile, async (req, res) => {
   }
 });
 
-router.get('/messages/:handle', requireProfile, async (req, res) => {
+router.get('/messages/:handle', requireDeckUser, async (req, res) => {
   const t0 = Date.now();
-  const pid = req.telegramProfileId;
+  const pid = req.deckUserId;
   try {
     const handle      = normaliseHandle(req.params.handle);
     const limit       = Math.min(parseInt(req.query.limit) || 30, 100);
@@ -347,25 +363,25 @@ router.get('/messages/:handle', requireProfile, async (req, res) => {
 
 // ─── Following (per deck profile) ────────────────────────────
 
-router.get('/following', requireProfile, (req, res) => {
-  ok(res, { following: state.getFollowing(req.telegramProfileId) });
+router.get('/following', requireDeckUser, (req, res) => {
+  ok(res, { following: state.getFollowing(req.deckUserId) });
 });
 
-router.post('/following', requireProfile, async (req, res) => {
+router.post('/following', requireDeckUser, async (req, res) => {
   try {
     const handle = normaliseHandle(req.body.handle);
     if (!handle) return fail(res, 'handle is required');
-    await tg.getEntityInfo(req.telegramProfileId, handle);
-    state.follow(req.telegramProfileId, handle);
+    await tg.getEntityInfo(req.deckUserId, handle);
+    state.follow(req.deckUserId, handle);
     ok(res, { handle });
   } catch (err) {
     fail(res, err.message);
   }
 });
 
-router.delete('/following/:handle', requireProfile, (req, res) => {
+router.delete('/following/:handle', requireDeckUser, (req, res) => {
   const handle = normaliseHandle(req.params.handle);
-  state.unfollow(req.telegramProfileId, handle);
+  state.unfollow(req.deckUserId, handle);
   ok(res, { handle });
 });
 
@@ -375,7 +391,7 @@ router.get('/lists', (req, res) => {
   ok(res, { lists: state.getLists() });
 });
 
-router.post('/lists', requireProfile, (req, res) => {
+router.post('/lists', requireDeckUser, (req, res) => {
   const { name, emoji } = req.body;
   if (!name) return fail(res, 'name is required');
   const list = {
@@ -388,16 +404,16 @@ router.post('/lists', requireProfile, (req, res) => {
   ok(res, { list });
 });
 
-router.delete('/lists/:id', requireProfile, (req, res) => {
+router.delete('/lists/:id', requireDeckUser, (req, res) => {
   state.deleteList(req.params.id);
   ok(res, { id: req.params.id });
 });
 
-router.post('/lists/:id/accounts', requireProfile, async (req, res) => {
+router.post('/lists/:id/accounts', requireDeckUser, async (req, res) => {
   try {
     const handle = normaliseHandle(req.body.handle);
     if (!handle) return fail(res, 'handle is required');
-    await tg.getEntityInfo(req.telegramProfileId, handle);
+    await tg.getEntityInfo(req.deckUserId, handle);
     state.addAccountToList(req.params.id, handle);
     ok(res, { listId: req.params.id, handle });
   } catch (err) {
@@ -405,7 +421,7 @@ router.post('/lists/:id/accounts', requireProfile, async (req, res) => {
   }
 });
 
-router.delete('/lists/:id/accounts/:handle', requireProfile, (req, res) => {
+router.delete('/lists/:id/accounts/:handle', requireDeckUser, (req, res) => {
   const handle = normaliseHandle(req.params.handle);
   state.removeAccountFromList(req.params.id, handle);
   ok(res, { listId: req.params.id, handle });
@@ -413,38 +429,38 @@ router.delete('/lists/:id/accounts/:handle', requireProfile, (req, res) => {
 
 // ─── Columns (per deck profile) ──────────────────────────────
 
-router.get('/columns', requireProfile, (req, res) => {
-  ok(res, { columns: state.getColumns(req.telegramProfileId) });
+router.get('/columns', requireDeckUser, (req, res) => {
+  ok(res, { columns: state.getColumns(req.deckUserId) });
 });
 
-router.put('/columns', requireProfile, (req, res) => {
+router.put('/columns', requireDeckUser, (req, res) => {
   const { columns } = req.body;
   if (!Array.isArray(columns)) return fail(res, 'columns must be an array');
-  state.setColumns(req.telegramProfileId, columns);
+  state.setColumns(req.deckUserId, columns);
   ok(res, { columns });
 });
 
-router.post('/columns', requireProfile, (req, res) => {
+router.post('/columns', requireDeckUser, (req, res) => {
   const col = req.body;
   if (!col || !col.id || !col.type) return fail(res, 'id and type are required');
-  state.addColumn(req.telegramProfileId, col);
+  state.addColumn(req.deckUserId, col);
   ok(res, { column: col });
 });
 
-router.delete('/columns/:id', requireProfile, (req, res) => {
-  state.removeColumn(req.telegramProfileId, req.params.id);
+router.delete('/columns/:id', requireDeckUser, (req, res) => {
+  state.removeColumn(req.deckUserId, req.params.id);
   ok(res, { id: req.params.id });
 });
 
 // ─── Settings (per deck profile) ─────────────────────────────
 
-router.get('/settings', requireProfile, (req, res) => {
-  ok(res, { settings: state.getSettings(req.telegramProfileId) });
+router.get('/settings', requireDeckUser, (req, res) => {
+  ok(res, { settings: state.getSettings(req.deckUserId) });
 });
 
-router.patch('/settings', requireProfile, (req, res) => {
-  state.updateSettings(req.telegramProfileId, req.body);
-  ok(res, { settings: state.getSettings(req.telegramProfileId) });
+router.patch('/settings', requireDeckUser, (req, res) => {
+  state.updateSettings(req.deckUserId, req.body);
+  ok(res, { settings: state.getSettings(req.deckUserId) });
 });
 
 module.exports = router;

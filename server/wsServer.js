@@ -1,5 +1,5 @@
 /**
- * WebSocket — live Telegram messages per browser session / deck profile.
+ * WebSocket — live Telegram messages per browser session / deck user.
  */
 
 const WebSocket = require('ws');
@@ -17,23 +17,23 @@ function init(server) {
   console.log('🔌  WebSocket server listening on /ws');
 
   wss.on('connection', (ws, req) => {
-    let profileId = null;
+    let deckUserId = null;
     try {
       const u = new URL(req.url || '/', 'http://127.0.0.1');
-      profileId = wsAuth.consume(u.searchParams.get('t'));
+      deckUserId = wsAuth.consume(u.searchParams.get('t'));
     } catch (_) {}
 
-    if (!profileId) {
+    if (!deckUserId) {
       ws.close(4001, 'unauthorized');
       return;
     }
 
-    ws.telegramProfileId = profileId;
-    console.log('🌐  WebSocket client connected (profile ' + profileId + ')');
+    ws.deckUserId = deckUserId;
+    console.log('🌐  WebSocket client connected (deck user ' + deckUserId + ')');
     safeSend(ws, { type: 'connected', message: 'TelegramDeck WebSocket ready' });
 
-    tg.ensureConnected(profileId).catch((err) => {
-      console.warn('WS profile connect:', err.message);
+    tg.ensureConnected(deckUserId).catch((err) => {
+      console.warn('WS Telegram connect:', err.message);
     });
 
     ws.on('message', (raw) => {
@@ -48,38 +48,48 @@ function init(server) {
   });
 
   if (!unsubscribeTg) {
-    unsubscribeTg = tg.onLiveMessage(async ({ profileId, message }) => {
+    unsubscribeTg = tg.onLiveMessage((message) => {
       const senderHandle = message.sender?.handle;
-      if (!senderHandle || !isTrackedForProfile(profileId, senderHandle)) return;
+      if (!senderHandle || !wss) return;
 
-      if (state.getSettings(profileId).autoTranslate && message.text) {
-        try {
-          const result = await translateToEnglish(message.text);
-          if (result) {
-            message.originalText  = message.text;
-            message.text          = result.translatedText;
-            message.sourceLang    = result.sourceLang;
-            message.wasTranslated = true;
+      wss.clients.forEach((ws) => {
+        if (ws.readyState !== WebSocket.OPEN || !ws.deckUserId) return;
+        if (!isTrackedForDeckUser(ws.deckUserId, senderHandle)) return;
+
+        (async () => {
+          let out = message;
+          if (state.getSettings(ws.deckUserId).autoTranslate && message.text) {
+            try {
+              const result = await translateToEnglish(message.text);
+              if (result) {
+                out = {
+                  ...message,
+                  originalText: message.text,
+                  text: result.translatedText,
+                  sourceLang: result.sourceLang,
+                  wasTranslated: true,
+                };
+              }
+            } catch (_) {}
           }
-        } catch (_) {}
-      }
-
-      broadcastToProfile(profileId, { type: 'new_message', message });
+          safeSend(ws, { type: 'new_message', message: out });
+        })();
+      });
     });
   }
 }
 
-function isTrackedForProfile(profileId, handle) {
+function isTrackedForDeckUser(deckUserId, handle) {
   const norm = handle.toLowerCase();
-  if (state.getFollowing(profileId).some(h => h.toLowerCase() === norm)) return true;
+  if (state.getFollowing(deckUserId).some(h => h.toLowerCase() === norm)) return true;
   return state.getLists().some(l => l.accounts.some(h => h.toLowerCase() === norm));
 }
 
-function broadcastToProfile(profileId, payload) {
+function broadcastToDeckUser(deckUserId, payload) {
   if (!wss) return;
   const str = JSON.stringify(payload);
   wss.clients.forEach((ws) => {
-    if (ws.telegramProfileId === profileId && ws.readyState === WebSocket.OPEN) {
+    if (ws.deckUserId === deckUserId && ws.readyState === WebSocket.OPEN) {
       try { ws.send(str); } catch (_) {}
     }
   });
@@ -91,4 +101,4 @@ function safeSend(ws, payload) {
   } catch (_) {}
 }
 
-module.exports = { init, broadcastToProfile };
+module.exports = { init, broadcastToDeckUser };
