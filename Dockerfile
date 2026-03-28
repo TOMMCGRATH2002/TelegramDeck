@@ -2,6 +2,8 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
+# postinstall runs relax-gramjs-ping.js; must exist before npm ci
+COPY scripts ./scripts
 RUN npm ci --omit=dev
 
 FROM node:20-alpine
