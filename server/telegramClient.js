@@ -16,6 +16,8 @@ const API_HASH = process.env.TELEGRAM_API_HASH;
 const MAX_MEDIA_BYTES = 45 * 1024 * 1024;
 
 const clients = new Map();
+/** One in-flight connect promise per profile — prevents parallel GramJS clients with the same session (Telegram 406 AUTH_KEY_DUPLICATED). */
+const connectLocks = new Map();
 const liveListeners = [];
 
 function trace(...args) {
@@ -57,38 +59,65 @@ async function ensureConnected(profileId) {
   let client = clients.get(profileId);
   if (client && client.connected) return client;
 
-  if (client) {
-    try { await client.destroy(); } catch (_) {}
-    clients.delete(profileId);
-  }
+  const existingLock = connectLocks.get(profileId);
+  if (existingLock) return existingLock;
 
-  const session = new StringSession(sessionStr);
-  client = new TelegramClient(session, API_ID, API_HASH, clientOptions());
-  await client.connect();
+  let resolveConnect;
+  let rejectConnect;
+  const done = new Promise((resolve, reject) => {
+    resolveConnect = resolve;
+    rejectConnect = reject;
+  });
+  connectLocks.set(profileId, done);
 
-  const authorised = await client.isUserAuthorized();
-  if (!authorised) {
-    try { await client.destroy(); } catch (_) {}
-    clients.delete(profileId);
-    throw new Error('Telegram session not authorised — run npm run auth and paste a new session string.');
-  }
-
-  console.log(`✅  Telegram MTProto connected for profile ${profileId}`);
-
-  client.addEventHandler(async (event) => {
+  (async () => {
     try {
-      const msg = event.message;
-      if (!msg || !msg.peerId) return;
-      const formatted = await formatSingleLiveMessage(msg, client);
-      if (formatted) emitLive(profileId, formatted);
-    } catch (_) {}
-  }, new NewMessage({}));
+      let c = clients.get(profileId);
+      if (c && c.connected) {
+        resolveConnect(c);
+        return;
+      }
+      if (c) {
+        try { await c.destroy(); } catch (_) {}
+        clients.delete(profileId);
+      }
 
-  clients.set(profileId, client);
-  return client;
+      const session = new StringSession(sessionStr);
+      c = new TelegramClient(session, API_ID, API_HASH, clientOptions());
+      await c.connect();
+
+      const authorised = await c.isUserAuthorized();
+      if (!authorised) {
+        try { await c.destroy(); } catch (_) {}
+        clients.delete(profileId);
+        throw new Error('Telegram session not authorised — run npm run auth and paste a new session string.');
+      }
+
+      console.log(`✅  Telegram MTProto connected for profile ${profileId}`);
+
+      c.addEventHandler(async (event) => {
+        try {
+          const msg = event.message;
+          if (!msg || !msg.peerId) return;
+          const formatted = await formatSingleLiveMessage(msg, c);
+          if (formatted) emitLive(profileId, formatted);
+        } catch (_) {}
+      }, new NewMessage({}));
+
+      clients.set(profileId, c);
+      resolveConnect(c);
+    } catch (err) {
+      rejectConnect(err);
+    } finally {
+      connectLocks.delete(profileId);
+    }
+  })();
+
+  return done;
 }
 
 async function destroyClient(profileId) {
+  connectLocks.delete(profileId);
   const c = clients.get(profileId);
   if (!c) return;
   try { await c.destroy(); } catch (_) {}
@@ -96,6 +125,7 @@ async function destroyClient(profileId) {
 }
 
 async function destroyAllClients() {
+  connectLocks.clear();
   const entries = [...clients.entries()];
   clients.clear();
   for (const [, c] of entries) {

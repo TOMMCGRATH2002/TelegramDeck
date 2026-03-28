@@ -343,7 +343,7 @@
     </div>
     <div class="profile-detail"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.72 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.63 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.64a16 16 0 0 0 6 6l.96-1.21a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21.7 16z"/></svg><span id="pa-phone">—</span></div>
     <div class="profile-detail"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>App version: <strong>TelegramDeck v1.0.0</strong></div>
-    <div class="profile-detail"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20a6 6 0 0 0-12 0"/><circle cx="12" cy="10" r="4"/></svg>MTProto: <strong><span id="pa-status" style="color:var(--warn)">●</span> Connecting…</strong></div>
+    <div class="profile-detail"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20a6 6 0 0 0-12 0"/><circle cx="12" cy="10" r="4"/></svg>Live updates: <strong><span id="pa-status" style="color:var(--warn)">●</span> Connecting…</strong></div>
     <div style="margin-top:16px" class="row-btns">
       <button class="btn-danger" type="button" onclick="removeActiveTelegramUser()">Remove this user…</button>
       <button class="btn-primary" onclick="closePanel('panel-account')">Close</button>
@@ -492,6 +492,11 @@ async function boot() {
 }
 
 async function loadDeckStateForActiveProfile() {
+  meProfile = null;
+  const paName = document.getElementById('pa-name');
+  const paHandle = document.getElementById('pa-handle');
+  if (paName) paName.textContent = 'Loading…';
+  if (paHandle) paHandle.textContent = '@—';
   try {
     const s = await apiFetch('/settings');
     settings = s.settings;
@@ -516,7 +521,9 @@ async function loadDeckStateForActiveProfile() {
   following = followingRes.following;
   columns = columnsRes.columns;
 
-  apiFetch('/me').then(r => { meProfile = r.user; updateProfilePanel(); }).catch(() => {});
+  apiFetch('/me')
+    .then((r) => { meProfile = r.user; updateProfilePanel(); })
+    .catch((err) => { setProfilePanelTelegramError(err.message || 'Could not load Telegram account'); });
 }
 
 // ══════════════════════════════════════════════════════════
@@ -558,6 +565,7 @@ async function connectWebSocket() {
   ws.addEventListener('open', () => {
     if (myGen !== wsGen) return;
     wsConnected = true;
+    updateProfilePanel();
     if (wsPingTimer) clearInterval(wsPingTimer);
     wsPingTimer = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ping' }));
@@ -573,6 +581,7 @@ async function connectWebSocket() {
 
   ws.addEventListener('close', () => {
     wsConnected = false;
+    updateProfilePanel();
     if (wsPingTimer) { clearInterval(wsPingTimer); wsPingTimer = null; }
     if (myGen !== wsGen) return;
     wsReconnectTimer = setTimeout(connectWebSocket, 3000);
@@ -855,7 +864,31 @@ function closePanel(id) {
   }
 }
 
+function setProfilePanelTelegramError(message) {
+  const short = (message || 'Unknown error').replace(/\s+/g, ' ').trim();
+  const clip = short.length > 140 ? short.slice(0, 137) + '…' : short;
+  document.getElementById('pa-name').textContent = 'Telegram not connected';
+  document.getElementById('pa-handle').textContent = clip;
+  document.getElementById('pa-phone').textContent = '—';
+  const letterEl = document.getElementById('pa-letter');
+  const imgEl = document.getElementById('pa-avatar-img');
+  letterEl.textContent = '!';
+  letterEl.style.display = '';
+  imgEl.removeAttribute('src');
+  imgEl.style.display = 'none';
+  updateProfilePanel();
+}
+
 function updateProfilePanel() {
+  const statusEl = document.getElementById('pa-status');
+  const strong = statusEl.parentElement && statusEl.parentElement.querySelector('strong');
+  if (wsConnected) {
+    statusEl.style.color = 'var(--success)';
+    if (strong && strong.childNodes[1]) strong.childNodes[1].textContent = ' Connected';
+  } else {
+    statusEl.style.color = 'var(--warn)';
+    if (strong && strong.childNodes[1]) strong.childNodes[1].textContent = ' Connecting…';
+  }
   if (!meProfile) return;
   const name = [meProfile.firstName, meProfile.lastName].filter(Boolean).join(' ') || meProfile.username || 'You';
   document.getElementById('pa-name').textContent = name;
@@ -876,12 +909,6 @@ function updateProfilePanel() {
   }
   document.getElementById('pa-handle').textContent = meProfile.username ? '@'+meProfile.username : '—';
   document.getElementById('pa-phone').textContent = meProfile.phone || '—';
-  const statusEl = document.getElementById('pa-status');
-  if (wsConnected) {
-    statusEl.style.color = 'var(--success)';
-    const strong = statusEl.parentElement.querySelector('strong');
-    if (strong && strong.childNodes[1]) strong.childNodes[1].textContent = ' Connected';
-  }
 }
 
 // ══════════════════════════════════════════════════════════
@@ -924,9 +951,10 @@ async function previewHandle() {
         <div class="li-text"><div class="li-name">${escHtml(e.name)}</div><div class="li-sub">${escHtml(e.handle)}</div></div>
         <span class="badge badge-green">Found ✓</span></div>`;
       entityCache[handle] = { name: e.name, handle: e.handle, color, photoUrl: e.photoUrl || null };
-    } catch(_) {
+    } catch (err) {
       prev.style.display = 'block';
-      prev.innerHTML = `<div style="font-size:12px;color:var(--danger);padding:8px">Account not found or private.</div>`;
+      const msg = (err && err.message) ? escHtml(err.message) : 'Account not found or private.';
+      prev.innerHTML = `<div style="font-size:12px;color:var(--danger);padding:8px;line-height:1.4">${msg}</div>`;
     }
   }, 600);
 }
