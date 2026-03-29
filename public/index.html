@@ -36,15 +36,14 @@
     --danger:#ff6b7a;--success:#3dd68c;--warn:#ffcc66;
   }
   body.theme-navy .profile-avatar{background:linear-gradient(135deg,var(--accent),#2a5a9e);}
-  @keyframes lw-drift{
+  /* Flowing water only on the navy slot of the theme controls (not the app logo). */
+  @keyframes lw-drift-theme{
     0%{transform:translateX(0);}
-    100%{transform:translateX(22px);}
+    100%{transform:translateX(11px);}
   }
-  .lw-flow{animation:lw-drift 2.8s linear infinite;will-change:transform;}
-  .sb-logo-water-thumb{display:none;width:44px;height:44px;border-radius:12px;overflow:hidden;align-items:center;justify-content:center;background:transparent;flex-shrink:0;}
-  .sb-logo-water-svg{display:block;width:100%;height:100%;}
-  body.theme-navy .sb-logo-img-wrap{display:none!important;}
-  body.theme-navy .sb-logo-water-thumb{display:flex!important;}
+  .theme-navy-water-svg .lw-flow{animation:lw-drift-theme 2.5s linear infinite;will-change:transform;}
+  #btn-theme:not(.theme-navy-active) .theme-navy-water-svg .lw-flow,
+  #btn-theme-account:not(.theme-navy-active) .theme-navy-water-svg .lw-flow{animation:none;will-change:auto;}
   *{margin:0;padding:0;box-sizing:border-box;}
   body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;height:100vh;overflow:hidden;transition:background var(--transition),color var(--transition);}
   .app-frame{display:flex;flex:1;min-height:0;min-width:0;width:100%;align-items:stretch;}
@@ -324,19 +323,7 @@
 <!-- ── SIDEBAR ── -->
 <nav id="sidebar">
   <button class="sb-logo-btn" onclick="location.reload()" title="TelegramDeck — refresh" type="button">
-    <span class="sb-logo-thumb sb-logo-img-wrap" aria-hidden="true"><img class="sb-logo-img" src="/logo.png" alt="" decoding="async"/></span>
-    <span class="sb-logo-thumb sb-logo-water-thumb" aria-hidden="true">
-      <svg class="sb-logo-water-svg" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" focusable="false">
-        <defs><clipPath id="lw-logo-clip"><circle cx="24" cy="24" r="21"/></clipPath></defs>
-        <g clip-path="url(#lw-logo-clip)">
-          <rect width="48" height="48" fill="#071525"/>
-          <g class="lw-flow">
-            <path fill="#4a8fd9" d="M-56 23c16-9 31 9 47 0s31 9 47 0 31 9 47 0 31 9 47 0v26H-56z" opacity="0.55"/>
-            <path fill="#9fd4ff" d="M-56 28c18 11 33-9 51 0s33-9 51 0 33-9 51 0 33-9 51 0v22H-56z" opacity="0.38"/>
-          </g>
-        </g>
-      </svg>
-    </span>
+    <span class="sb-logo-thumb" aria-hidden="true"><img class="sb-logo-img" src="/logo.png" alt="" decoding="async"/></span>
     <span class="sb-logo-label">TelegramDeck</span>
   </button>
 
@@ -377,7 +364,16 @@
     <button class="sb-btn" id="btn-theme" type="button" onclick="cycleColorTheme()" title="Theme: dark, light, or navy (tap to cycle)">
       <svg id="icon-theme-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
       <svg id="icon-theme-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
-      <svg id="icon-theme-navy" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none" aria-hidden="true"><path d="M2 14c2.5-1.5 5-.5 7.5 0s5-.5 7.5 0 5-.5 7.5 0 5-.5 7.5 0"/><path d="M2 18c2.5-1.2 5-.3 7.5.2s5-.3 7.5.2 5-.3 7.5.2 5-.3 7.5.2" opacity="0.65"/><path d="M2 10c2.5-1.8 5-.2 7.5.5s5-.2 7.5.5 5-.2 7.5.5 5-.2 7.5.5" opacity="0.45"/></svg>
+      <svg id="icon-theme-navy" class="theme-navy-water-svg" width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true" focusable="false">
+        <defs><clipPath id="tw-clip-theme-nav"><circle cx="12" cy="12" r="10"/></clipPath></defs>
+        <g clip-path="url(#tw-clip-theme-nav)">
+          <rect width="24" height="24" fill="#071525"/>
+          <g class="lw-flow">
+            <path fill="#4a8fd9" d="M-28 11c8-4 15 4 23 0s15 4 23 0 15 4 23 0v15H-28z" opacity="0.55"/>
+            <path fill="#9fd4ff" d="M-28 14c9 5 16-5 25 0s16-5 25 0v12H-28z" opacity="0.38"/>
+          </g>
+        </g>
+      </svg>
       <span class="btn-label">Theme</span>
     </button>
     <button class="expand-btn" onclick="toggleSidebar()">
@@ -416,7 +412,16 @@
       <button type="button" class="btn-ghost" id="btn-theme-account" style="width:100%;margin-bottom:12px;justify-content:center;display:flex;align-items:center;gap:10px" onclick="cycleColorTheme()">
         <svg class="acc-theme-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
         <svg class="acc-theme-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
-        <svg class="acc-theme-navy" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M2 14c2.5-1.5 5-.5 7.5 0s5-.5 7.5 0 5-.5 7.5 0 5-.5 7.5 0"/><path d="M2 18c2.5-1.2 5-.3 7.5.2s5-.3 7.5.2 5-.3 7.5.2 5-.3 7.5.2" opacity="0.65"/><path d="M2 10c2.5-1.8 5-.2 7.5.5s5-.2 7.5.5 5-.2 7.5.5 5-.2 7.5.5" opacity="0.45"/></svg>
+        <svg class="acc-theme-navy theme-navy-water-svg" width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="display:none" focusable="false">
+          <defs><clipPath id="tw-clip-theme-acc"><circle cx="12" cy="12" r="10"/></clipPath></defs>
+          <g clip-path="url(#tw-clip-theme-acc)">
+            <rect width="24" height="24" fill="#071525"/>
+            <g class="lw-flow">
+              <path fill="#4a8fd9" d="M-28 11c8-4 15 4 23 0s15 4 23 0 15 4 23 0v15H-28z" opacity="0.55"/>
+              <path fill="#9fd4ff" d="M-28 14c9 5 16-5 25 0s16-5 25 0v12H-28z" opacity="0.38"/>
+            </g>
+          </g>
+        </svg>
         <span>Theme (dark · light · navy)</span>
       </button>
       <div class="section-hdr" style="padding-top:0">Following</div>
@@ -907,6 +912,8 @@ function syncThemeBtn() {
   if (moonA) moonA.style.display = showMoon ? '' : 'none';
   if (sunA) sunA.style.display = showSun ? '' : 'none';
   if (navyA) navyA.style.display = showNavy ? '' : 'none';
+  document.getElementById('btn-theme')?.classList.toggle('theme-navy-active', colorTheme === 'navy');
+  document.getElementById('btn-theme-account')?.classList.toggle('theme-navy-active', colorTheme === 'navy');
 }
 
 function syncTranslateBtns() {
