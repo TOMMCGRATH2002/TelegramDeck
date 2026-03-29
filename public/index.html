@@ -8,12 +8,12 @@
 <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.webmanifest">
-<meta name="theme-color" content="#0a0a0b">
+<meta name="theme-color" content="#000000">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg:#0a0a0b;--bg2:#0f0f10;--bg3:#18181a;--bg4:#2a2a2d;
-    --border:#2a2a2e;--border2:#3d3d42;
+    --bg:#000000;--bg2:#050505;--bg3:#0c0c0c;--bg4:#141414;
+    --border:#1a1a1a;--border2:#252525;
     --text:#f0f2f4;--text2:#9aa0a6;--text3:#6b7280;
     --accent:#1da1f2;--accent2:#1a8cd8;--accent-glow:rgba(29,161,242,0.18);
     --danger:#f4212e;--success:#17bf63;--warn:#ffad1f;
@@ -151,9 +151,10 @@
   .col:first-child{border-left:none;}
   .col.dragging{opacity:0.5;}
   .col.drag-over{outline:2px solid var(--accent);outline-offset:-2px;}
-  .col-header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);cursor:grab;user-select:none;flex-shrink:0;background:var(--bg2);}
+  .col-header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);cursor:grab;user-select:none;flex-shrink:0;background:var(--bg);}
   .col-header:active{cursor:grabbing;}
   .col-icon{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;position:relative;overflow:hidden;flex-shrink:0;color:var(--text3);}
+  .col-icon--plain{background:transparent!important;}
   .col-icon .col-drag-grip{display:block;}
   .col-icon .col-icon-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
   .col-icon .col-icon-fallback{position:relative;z-index:0;font-weight:700;font-size:12px;}
@@ -211,8 +212,16 @@
   @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 
   /* ── Mobile / tablet: top bar + full-screen drawer ── */
+  @media (min-width:901px){
+    .account-mobile-only{display:none!important;}
+  }
   @media (max-width:900px){
     :root{--mobile-topbar-h:52px;}
+    .sb-hide-mobile{display:none!important;}
+    #sidebar .sb-logo-btn{order:0;}
+    #btn-add{order:1;}
+    #btn-lists{order:2;}
+    #btn-account{order:3;}
     .app-frame{flex-direction:column;}
     #sidebar{
       width:100%!important;min-width:0!important;max-height:none;
@@ -293,11 +302,11 @@
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.582-7 8-7s8 3 8 7"/></svg>
     <span class="btn-label">Account</span>
   </button>
-  <button class="sb-btn" id="btn-deck" onclick="openPanel('panel-deck')">
+  <button class="sb-btn sb-hide-mobile" id="btn-deck" onclick="openPanel('panel-deck')">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="5" height="18" rx="1"/><rect x="9.5" y="3" width="5" height="18" rx="1"/><rect x="17" y="3" width="5" height="18" rx="1"/></svg>
     <span class="btn-label">Deck</span>
   </button>
-  <div class="sb-vsep" aria-hidden="true"></div>
+  <div class="sb-vsep sb-hide-mobile" aria-hidden="true"></div>
   <button class="sb-btn" id="btn-add" onclick="openPanel('panel-add')">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
     <span class="btn-label">Add Account</span>
@@ -306,19 +315,19 @@
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="6" height="6" rx="1"/><rect x="3" y="13" width="6" height="6" rx="1"/><line x1="13" y1="7" x2="21" y2="7"/><line x1="13" y1="15" x2="21" y2="15"/><line x1="13" y1="11" x2="18" y2="11"/><line x1="13" y1="19" x2="18" y2="19"/></svg>
     <span class="btn-label">Lists</span>
   </button>
-  <button class="sb-btn" id="btn-following" onclick="openPanel('panel-following')">
+  <button class="sb-btn sb-hide-mobile" id="btn-following" onclick="openPanel('panel-following')">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><path d="M2 20c0-3.5 3.1-6 7-6s7 2.5 7 6"/><path d="M16 11l2 2 4-4"/></svg>
     <span class="btn-label">Following</span>
   </button>
-  <div class="sb-vsep" aria-hidden="true"></div>
-  <button class="sb-btn" id="btn-translate" onclick="toggleTranslate()">
+  <div class="sb-vsep sb-hide-mobile" aria-hidden="true"></div>
+  <button class="sb-btn sb-hide-mobile" id="btn-translate" onclick="toggleTranslate()">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12.87 15.07l-2.54-2.51.03-.03A17.52 17.52 0 0014.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg>
     <span class="btn-label">Auto-translate</span>
   </button>
 
-  <div class="sb-spacer"></div>
-  <div class="sb-divider"></div>
-  <div class="sb-bottom">
+  <div class="sb-spacer sb-hide-mobile"></div>
+  <div class="sb-divider sb-hide-mobile"></div>
+  <div class="sb-bottom sb-hide-mobile">
     <button class="sb-btn" id="btn-popout" onclick="openPopout()" title="Open in pop-out window">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
       <span class="btn-label">Pop out</span>
@@ -343,30 +352,37 @@
   <div class="panel">
     <button class="panel-close" onclick="closePanel('panel-account')">✕</button>
     <h2>Account</h2>
-    <div class="section-hdr" style="padding-top:0">Deck usernames</div>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.45"><strong>Lists</strong> you create are <strong>private</strong>: only you see and edit them until you approve someone else via a connect request. Older lists without an owner stay open to every deck on this server. Each deck has its own <strong>Following</strong> and <strong>Deck</strong> columns. Telegram runs once on the server (admin <code style="font-size:11px">TELEGRAM_SESSION</code>).</p>
     <div id="list-access-incoming-wrap" style="display:none;margin-bottom:14px">
       <div class="section-hdr" style="padding-top:0">List connect requests</div>
       <p style="font-size:12px;color:var(--text2);margin-bottom:8px;line-height:1.45">Someone asked to collaborate on your list (view accounts, add to deck, edit the list). Allow or block.</p>
       <div id="list-access-incoming"></div>
     </div>
-    <p id="account-deck-line" style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.5">Signed in as <strong id="account-deck-name">—</strong>. To use a different deck, <strong>sign out</strong> below and sign back in with that username.</p>
-    <button type="button" class="btn-ghost" style="width:100%;margin-bottom:14px" onclick="signOutDeck()">Sign out (switch user)</button>
-    <div class="sep"></div>
     <div class="profile-card">
       <div class="profile-avatar" id="pa-avatar">
         <img class="profile-avatar-img" id="pa-avatar-img" alt="" decoding="async"/>
         <span id="pa-letter">?</span>
       </div>
       <div class="profile-name" id="pa-name">Loading…</div>
-      <div class="profile-handle" id="pa-handle">Your deck on this server</div>
+      <div class="profile-handle" id="pa-handle" style="display:none" hidden></div>
     </div>
     <div class="profile-detail"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>App version: <strong>TelegramDeck v1.0.0</strong></div>
     <div class="profile-detail"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20a6 6 0 0 0-12 0"/><circle cx="12" cy="10" r="4"/></svg>Live updates: <strong><span id="pa-status" style="color:var(--warn)">●</span> Connecting…</strong></div>
+    <div class="account-mobile-only" style="margin-top:14px">
+      <div class="section-hdr" style="padding-top:0">Quick settings</div>
+      <button type="button" class="btn-ghost" id="btn-translate-account" style="width:100%;margin-bottom:8px;justify-content:center" onclick="toggleTranslate()">Auto-translate</button>
+      <button type="button" class="btn-ghost" id="btn-theme-account" style="width:100%;margin-bottom:12px;justify-content:center;display:flex;align-items:center;gap:10px" onclick="toggleTheme()">
+        <svg class="acc-theme-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <svg class="acc-theme-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+        <span>Light / dark</span>
+      </button>
+      <div class="section-hdr" style="padding-top:0">Following</div>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:8px;line-height:1.45">Accounts you follow individually (not via a list).</p>
+      <div id="following-container-account"></div>
+    </div>
     <div style="margin-top:16px" class="row-btns">
-      <button class="btn-danger" type="button" onclick="removeMyDeck()">Delete my deck…</button>
       <button class="btn-primary" onclick="closePanel('panel-account')">Close</button>
     </div>
+    <button type="button" class="btn-danger" style="width:100%;margin-top:14px" onclick="signOutDeck()">Sign out</button>
   </div>
 </div>
 
@@ -505,6 +521,34 @@ let activeProfileId = null; // active deck user id (session)
 let wsGen           = 0;
 let wsReconnectTimer = null;
 
+function isNarrowMobile() {
+  return typeof window.matchMedia === 'function' && window.matchMedia('(max-width:900px)').matches;
+}
+
+function getColumnsForDisplay() {
+  if (isNarrowMobile()) {
+    const allCol = columns.find((c) => c.id === 'col-all');
+    if (allCol) return [allCol];
+    const anyAll = columns.filter((c) => c.type === 'all');
+    return anyAll.length ? [anyAll[0]] : columns.slice(0, 1);
+  }
+  return columns;
+}
+
+let layoutMqBound = false;
+function bindLayoutMediaQuery() {
+  if (layoutMqBound || !window.matchMedia) return;
+  layoutMqBound = true;
+  const mq = window.matchMedia('(max-width:900px)');
+  const onLayoutChange = () => {
+    renderAllColumns();
+    renderFollowingPanel();
+    renderListsPanel();
+  };
+  if (mq.addEventListener) mq.addEventListener('change', onLayoutChange);
+  else if (mq.addListener) mq.addListener(onLayoutChange);
+}
+
 // ══════════════════════════════════════════════════════════
 //  BOOT
 // ══════════════════════════════════════════════════════════
@@ -544,6 +588,7 @@ async function boot() {
 
   await loadDeckStateForActiveProfile();
   adjustPopoutChrome();
+  bindLayoutMediaQuery();
   renderAllColumns();
   connectWebSocket();
   startRelativeTimeTicker();
@@ -584,9 +629,7 @@ async function signOutDeck() {
 async function loadDeckStateForActiveProfile() {
   meProfile = null;
   const paName = document.getElementById('pa-name');
-  const paHandle = document.getElementById('pa-handle');
   if (paName) paName.textContent = 'Loading…';
-  if (paHandle) paHandle.textContent = 'Your deck on this server';
   try {
     const s = await apiFetch('/settings');
     settings = s.settings;
@@ -596,7 +639,7 @@ async function loadDeckStateForActiveProfile() {
   if (!darkMode) document.body.classList.add('light');
   else document.body.classList.remove('light');
   syncThemeBtn();
-  document.getElementById('btn-translate').classList.toggle('active', settings.autoTranslate);
+  syncTranslateBtns();
   if (settings.sidebarExpanded) { sidebarExpanded = true; document.getElementById('sidebar').classList.add('expanded'); }
   else { sidebarExpanded = false; document.getElementById('sidebar').classList.remove('expanded'); }
 
@@ -610,6 +653,7 @@ async function loadDeckStateForActiveProfile() {
   lists = listsRes.lists;
   following = followingRes.following;
   columns = columnsRes.columns;
+  renderFollowingPanel();
 
   apiFetch('/me')
     .then((r) => { meProfile = r.user; updateProfilePanel(); renderListAccessUI(); })
@@ -693,7 +737,7 @@ function startRelativeTimeTicker() {
 
 function startColumnPolling() {
   if (columnPollTimer) clearInterval(columnPollTimer);
-  columnPollTimer = setInterval(() => { columns.forEach(pollNewInColumn); }, 45000);
+  columnPollTimer = setInterval(() => { getColumnsForDisplay().forEach(pollNewInColumn); }, 45000);
 }
 
 async function pollNewInColumn(col) {
@@ -737,7 +781,7 @@ function handleLiveMessage(msg) {
       photoUrl: msg.sender.photoUrl || null,
     };
   }
-  columns.forEach(col => {
+  getColumnsForDisplay().forEach(col => {
     const handles = getColumnHandles(col);
     if (senderHandle && handles.some(h => h.toLowerCase() === senderHandle.toLowerCase())) {
       const body = document.getElementById('body-'+col.id);
@@ -778,9 +822,22 @@ let darkMode = true;
 function syncThemeBtn() {
   const moon = document.getElementById('icon-theme-moon');
   const sun = document.getElementById('icon-theme-sun');
-  if (!moon || !sun) return;
-  if (darkMode) { moon.style.display = ''; sun.style.display = 'none'; }
-  else { moon.style.display = 'none'; sun.style.display = ''; }
+  if (moon && sun) {
+    if (darkMode) { moon.style.display = ''; sun.style.display = 'none'; }
+    else { moon.style.display = 'none'; sun.style.display = ''; }
+  }
+  const moonA = document.querySelector('.acc-theme-moon');
+  const sunA = document.querySelector('.acc-theme-sun');
+  if (moonA && sunA) {
+    if (darkMode) { moonA.style.display = ''; sunA.style.display = 'none'; }
+    else { moonA.style.display = 'none'; sunA.style.display = ''; }
+  }
+}
+
+function syncTranslateBtns() {
+  const on = !!settings.autoTranslate;
+  document.getElementById('btn-translate')?.classList.toggle('active', on);
+  document.getElementById('btn-translate-account')?.classList.toggle('active', on);
 }
 
 function toggleTheme() {
@@ -808,36 +865,9 @@ function adjustPopoutChrome() {
 
 async function toggleTranslate() {
   settings.autoTranslate = !settings.autoTranslate;
-  document.getElementById('btn-translate').classList.toggle('active', settings.autoTranslate);
+  syncTranslateBtns();
   await apiFetch('/settings', { method:'PATCH', body: { autoTranslate: settings.autoTranslate } }).catch(()=>{});
   renderAllColumns(); // re-render with/without translations
-}
-
-function updateAccountDeckNameLine() {
-  const strong = document.getElementById('account-deck-name');
-  if (!strong) return;
-  let name = '—';
-  if (meProfile && meProfile.deckUsername) name = meProfile.deckUsername;
-  else {
-    const u = profilesList.find((p) => p.id === activeProfileId);
-    if (u) name = u.username || u.id;
-  }
-  strong.textContent = name;
-}
-
-async function removeTelegramProfile(id) {
-  if (!id) return;
-  if (!confirm('Delete this deck? Its follows and columns are removed; shared lists stay on the server.')) return;
-  try {
-    await apiFetch('/deck-users/' + encodeURIComponent(id), { method: 'DELETE' });
-    location.reload();
-  } catch (e) {
-    showToast(e.message, true);
-  }
-}
-
-function removeMyDeck() {
-  if (activeProfileId) removeTelegramProfile(activeProfileId);
 }
 
 // ══════════════════════════════════════════════════════════
@@ -862,9 +892,9 @@ function openPanel(id) {
   if (id==='panel-add')       initAddPanel();
   if (id==='panel-following') renderFollowingPanel();
   if (id==='panel-account')   {
-    updateAccountDeckNameLine();
     updateProfilePanel();
     refreshMeListAccess();
+    renderFollowingPanel();
   }
 }
 
@@ -888,14 +918,29 @@ function setProfilePanelTelegramError(message) {
   const short = (message || 'Unknown error').replace(/\s+/g, ' ').trim();
   const clip = short.length > 140 ? short.slice(0, 137) + '…' : short;
   document.getElementById('pa-name').textContent = 'Connection issue';
-  document.getElementById('pa-handle').textContent = clip;
+  const ph = document.getElementById('pa-handle');
+  if (ph) {
+    ph.textContent = clip;
+    ph.style.display = 'block';
+    ph.hidden = false;
+  }
   const letterEl = document.getElementById('pa-letter');
   const imgEl = document.getElementById('pa-avatar-img');
   letterEl.textContent = '!';
   letterEl.style.display = '';
   imgEl.removeAttribute('src');
   imgEl.style.display = 'none';
-  updateProfilePanel();
+  const statusEl = document.getElementById('pa-status');
+  const strong = statusEl && statusEl.parentElement && statusEl.parentElement.querySelector('strong');
+  if (statusEl) {
+    if (wsConnected) {
+      statusEl.style.color = 'var(--success)';
+      if (strong && strong.childNodes[1]) strong.childNodes[1].textContent = ' Connected';
+    } else {
+      statusEl.style.color = 'var(--warn)';
+      if (strong && strong.childNodes[1]) strong.childNodes[1].textContent = ' Connecting…';
+    }
+  }
 }
 
 function deckUsernameById(id) {
@@ -1103,10 +1148,13 @@ function updateProfilePanel() {
   letterEl.style.display = '';
   imgEl.removeAttribute('src');
   imgEl.style.display = 'none';
-  document.getElementById('pa-handle').textContent = meProfile.telegramConnected
-    ? 'Server Telegram connection is active (your personal Telegram account is not shown here).'
-    : 'Checking connection…';
-  updateAccountDeckNameLine();
+  const ph = document.getElementById('pa-handle');
+  const nm = document.getElementById('pa-name');
+  if (ph && nm && nm.textContent !== 'Connection issue') {
+    ph.textContent = '';
+    ph.style.display = 'none';
+    ph.hidden = true;
+  }
   renderListAccessUI();
 }
 
@@ -1354,34 +1402,40 @@ async function createList() {
 //  FOLLOWING PANEL
 // ══════════════════════════════════════════════════════════
 function renderFollowingPanel() {
-  const c = document.getElementById('following-container');
-  c.innerHTML = '';
-  if (!following.length) { c.innerHTML='<div class="empty-state"><p>No individually followed accounts.<br>Use Add Account → Just for me.</p></div>'; return; }
-  following.forEach(handle => {
-    const info = entityCache[handle] || { name: handle.replace('@',''), handle, color: entityColor(handle) };
-    const inDeck = columns.some(col=>col.type==='account'&&col.ref===handle);
-    const div = document.createElement('div');
-    div.className = 'list-item';
-    div.innerHTML = `
+  const emptyHtml = '<div class="empty-state"><p>No individually followed accounts.<br>Use Add Account → Just for me.</p></div>';
+  const narrow = isNarrowMobile();
+  let html;
+  if (!following.length) {
+    html = emptyHtml;
+  } else {
+    html = following.map((handle) => {
+      const info = entityCache[handle] || { name: handle.replace('@',''), handle, color: entityColor(handle) };
+      const inDeck = columns.some(col=>col.type==='account'&&col.ref===handle);
+      const deckBtn = narrow ? '' : `<button class="icon-btn" style="${inDeck?'color:var(--accent)':''}" title="Toggle column" onclick="toggleAccountColUI('${handle}',this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="5" height="18" rx="1"/><rect x="9" y="3" width="5" height="18" rx="1"/><rect x="16" y="3" width="6" height="18" rx="1"/></svg>
+        </button>`;
+      return `<div class="list-item">
       ${buildAvatarHtml(handle, info.name, info.color, 36)}
       <div class="li-text"><div class="li-name">${escHtml(info.name)}</div><div class="li-sub">${escHtml(info.handle)}</div></div>
       <div class="li-actions">
-        <button class="icon-btn" style="${inDeck?'color:var(--accent)':''}" title="Toggle column" onclick="toggleAccountColUI('${handle}',this)">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="5" height="18" rx="1"/><rect x="9" y="3" width="5" height="18" rx="1"/><rect x="16" y="3" width="6" height="18" rx="1"/></svg>
-        </button>
-        <button class="icon-btn danger" onclick="unfollowUI('${handle}',this.closest('.list-item'))">
+        ${deckBtn}
+        <button class="icon-btn danger" onclick="unfollowUI('${handle}')">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
-      </div>`;
-    c.appendChild(div);
+      </div></div>`;
+    }).join('');
+  }
+  ['following-container', 'following-container-account'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = html;
   });
 }
 
-async function unfollowUI(handle, el) {
+async function unfollowUI(handle) {
   await apiFetch('/following/'+encodeURIComponent(handle.replace('@','')), { method:'DELETE' }).catch(()=>{});
   following = following.filter(h=>h!==handle);
   columns = columns.filter(c=>!(c.type==='account'&&c.ref===handle));
-  el.remove();
+  renderFollowingPanel();
   renderAllColumns();
 }
 
@@ -1399,6 +1453,7 @@ async function toggleAccountColUI(handle, btn) {
     btn.style.color='var(--accent)';
     await apiFetch('/columns', { method:'POST', body:col }).catch(()=>{});
   }
+  renderFollowingPanel();
   renderAllColumns();
 }
 
@@ -1471,7 +1526,7 @@ async function addDeckAccountUI(handle) {
 function renderAllColumns() {
   const wrap = document.getElementById('columns-wrap');
   wrap.innerHTML = '';
-  columns.forEach(col => {
+  getColumnsForDisplay().forEach(col => {
     wrap.appendChild(buildColumnEl(col));
     // Must run after attach: getElementById only sees nodes in the document tree.
     loadColumnMessages(col);
@@ -1483,11 +1538,11 @@ function buildColumnEl(col) {
   div.className = 'col';
   div.dataset.colId = col.id;
 
-  const { iconHtml, iconBg } = colHeaderIconParts(col);
+  const { iconHtml, iconBg, plainGrip } = colHeaderIconParts(col);
 
   div.innerHTML = `
     <div class="col-header" draggable="true" ondragstart="onDragStart(event,'${col.id}')" ondragend="onDragEnd(event)">
-      <div class="col-icon" style="background:${iconBg}">${iconHtml}</div>
+      <div class="col-icon${plainGrip ? ' col-icon--plain' : ''}" style="background:${iconBg}">${iconHtml}</div>
       <div class="col-title-wrap">
         <div class="col-title">${escHtml(colHeaderTitle(col))}</div>
       </div>
@@ -1707,12 +1762,13 @@ function columnGripSvg() {
 function colHeaderIconParts(col) {
   if (col.type === 'all') {
     return {
-      iconBg: 'var(--bg4)',
+      iconBg: 'transparent',
+      plainGrip: true,
       iconHtml: columnGripSvg(),
     };
   }
   if (col.type === 'list') {
-    return { iconBg: 'var(--bg4)', iconHtml: columnGripSvg() };
+    return { iconBg: 'transparent', plainGrip: true, iconHtml: columnGripSvg() };
   }
   if (col.type === 'account' && col.ref) {
     const h = col.ref;
@@ -1723,17 +1779,19 @@ function colHeaderIconParts(col) {
     const src = escAttr(API + '/avatar/' + encodeURIComponent(un));
     return {
       iconBg: color + '33',
+      plainGrip: false,
       iconHtml: `<img class="col-icon-img" src="${src}" alt="" decoding="async" loading="lazy" onerror="this.classList.add('col-icon-img--err')"/><span class="col-icon-fallback" style="font-weight:700;font-size:11px">${escHtml(letter)}</span>`,
     };
   }
   if (col.type === 'following') {
     return {
       iconBg: 'var(--bg4)',
+      plainGrip: false,
       iconHtml: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
     };
   }
   const letter = listInitial(col.title);
-  return { iconBg: col.iconBg || 'var(--bg4)', iconHtml: `<span style="font-weight:700;font-size:12px">${escHtml(letter)}</span>` };
+  return { iconBg: col.iconBg || 'var(--bg4)', plainGrip: false, iconHtml: `<span style="font-weight:700;font-size:12px">${escHtml(letter)}</span>` };
 }
 
 function deckColTitle(col) {
