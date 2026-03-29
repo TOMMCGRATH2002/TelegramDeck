@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, viewport-fit=cover">
 <title>TelegramDeck</title>
 <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
 <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
@@ -45,7 +45,8 @@
   #btn-theme:not(.theme-navy-active) .theme-navy-water-svg .lw-flow,
   #btn-theme-account:not(.theme-navy-active) .theme-navy-water-svg .lw-flow{animation:none;will-change:auto;}
   *{margin:0;padding:0;box-sizing:border-box;}
-  body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;height:100vh;overflow:hidden;transition:background var(--transition),color var(--transition);}
+  html{height:100%;overflow-x:hidden;-webkit-text-size-adjust:100%;text-size-adjust:100%;}
+  body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden;overflow-x:hidden;transition:background var(--transition),color var(--transition);touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
   .app-frame{display:flex;flex:1;min-height:0;min-width:0;width:100%;align-items:stretch;}
 
   /* ── SIDEBAR ── */
@@ -239,18 +240,24 @@
   @media (max-width:900px){
     :root{--post-avatar-w:34px;--post-avatar-gap:8px;}
     .sb-hide-mobile{display:none!important;}
+    /* Beat desktop #sidebar:not(.expanded) .sb-logo-btn { width:44px } so the logo row is full-width and centered. */
+    #sidebar:not(.expanded) .sb-logo-btn{
+      width:100%!important;min-width:0!important;max-width:none!important;
+      margin-left:0!important;margin-right:0!important;
+    }
+    .login-gate .field input,.login-gate .field select{font-size:16px;}
     .sb-nav-main{
       display:flex;flex-direction:row;flex-wrap:wrap;justify-content:center;align-items:center;
       align-content:center;gap:8px 10px;width:100%;box-sizing:border-box;
     }
-    .app-frame{flex-direction:column;}
+    .app-frame{flex-direction:column;max-width:100%;min-width:0;}
     #sidebar{
-      width:100%!important;min-width:0!important;max-height:none;
+      width:100%!important;min-width:0!important;max-width:100%;max-height:none;
       flex-direction:column;flex-wrap:nowrap;align-items:stretch;
-      gap:6px;padding:12px 8px 10px;
+      gap:6px;padding:10px 8px 8px;
       padding-left:max(8px,env(safe-area-inset-left));
       padding-right:max(8px,env(safe-area-inset-right));
-      padding-top:max(12px,env(safe-area-inset-top));
+      padding-top:max(10px,env(safe-area-inset-top));
       overflow-x:visible;overflow-y:visible;
       scrollbar-width:none;border-right:none;border-bottom:1px solid var(--border);
       flex-shrink:0;min-height:0;
@@ -301,8 +308,12 @@
       width:100%!important;min-width:0!important;max-width:100%!important;
       padding:max(16px,env(safe-area-inset-top)) max(18px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left));
     }
-    #main{flex:1;min-height:0;min-width:0;}
-    #columns-wrap{padding-bottom:env(safe-area-inset-bottom);}
+    #main{flex:1;min-height:0;min-width:0;max-width:100%;}
+    #columns-wrap{
+      padding-bottom:env(safe-area-inset-bottom);
+      overflow-x:hidden;
+      max-width:100%;
+    }
     .post-media-img,.post-media-video{max-height:min(360px,55vh);}
     .col-body{-webkit-overflow-scrolling:touch;}
     .post-body{margin-left:calc(var(--post-avatar-w) + var(--post-avatar-gap));}
