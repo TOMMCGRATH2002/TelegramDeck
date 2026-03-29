@@ -4,6 +4,8 @@
  */
 
 const { spawn } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
 const SPAWN_TIMEOUT_MS = parseInt(process.env.TRUTHBRUSH_TIMEOUT_MS, 10) || 90000;
@@ -92,6 +94,12 @@ function resolveTruthbrushBin() {
 function runTruthbrushStatuses(handle, { createdAfterIso }) {
   const bin = resolveTruthbrushBin();
   const args = ['statuses', handle, '--created-after', createdAfterIso];
+
+  if (path.isAbsolute(bin) && !fs.existsSync(bin)) {
+    return Promise.reject(new Error(
+      `truthbrush binary missing: ${bin}. In Docker run: docker compose build --no-cache && docker compose up -d (image installs /app/.venv/bin/truthbrush). Remove host-only TRUTHBRUSH_BIN from .env or use compose override.`
+    ));
+  }
 
   return new Promise((resolve, reject) => {
     const child = spawn(bin, args, {

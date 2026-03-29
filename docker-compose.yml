@@ -8,6 +8,8 @@ services:
       - .env
     environment:
       NODE_ENV: production
+      # Must point inside the image — .env often has a host path like /root/.local/... which breaks Truth here
+      TRUTHBRUSH_BIN: /app/.venv/bin/truthbrush
     volumes:
       - telegramdeck_data:/app/data
     restart: unless-stopped
