@@ -149,11 +149,11 @@ router.get('/truth/feed', requireDeckUser, async (req, res) => {
     }
     ok(res, { messages, handle });
   } catch (err) {
+    const msg = (err && err.message) ? String(err.message).slice(0, 1200) : 'Truth feed failed';
+    console.error('[truth/feed]', handle, err);
     trace('GET /truth/feed ERR', { handle, error: err.message });
-    if (process.env.TELEGRAMDECK_TRUTH_ERRORS === '1' || process.env.NODE_ENV !== 'production') {
-      return fail(res, (err && err.message) ? String(err.message).slice(0, 800) : 'Truth feed failed', 502);
-    }
-    fail500(res, err);
+    /** Always return the error text so self-hosted admins can fix token / truthbrush / Docker without guessing. */
+    return fail(res, msg, 502);
   }
 });
 
