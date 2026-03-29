@@ -344,7 +344,12 @@
     <button class="panel-close" onclick="closePanel('panel-account')">✕</button>
     <h2>Account</h2>
     <div class="section-hdr" style="padding-top:0">Deck usernames</div>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.45"><strong>Lists</strong> are <strong>shared</strong> on this server. Each deck username has its own <strong>Following</strong> and <strong>Deck</strong> columns. Telegram runs once on the server (admin <code style="font-size:11px">TELEGRAM_SESSION</code>).</p>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.45"><strong>Lists</strong> you create are <strong>private</strong>: only you see and edit them until you approve someone else via a connect request. Older lists without an owner stay open to every deck on this server. Each deck has its own <strong>Following</strong> and <strong>Deck</strong> columns. Telegram runs once on the server (admin <code style="font-size:11px">TELEGRAM_SESSION</code>).</p>
+    <div id="list-access-incoming-wrap" style="display:none;margin-bottom:14px">
+      <div class="section-hdr" style="padding-top:0">List connect requests</div>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:8px;line-height:1.45">Someone asked to collaborate on your list (view accounts, add to deck, edit the list). Allow or block.</p>
+      <div id="list-access-incoming"></div>
+    </div>
     <p id="account-deck-line" style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.5">Signed in as <strong id="account-deck-name">—</strong>. To use a different deck, <strong>sign out</strong> below and sign back in with that username.</p>
     <button type="button" class="btn-ghost" style="width:100%;margin-bottom:14px" onclick="signOutDeck()">Sign out (switch user)</button>
     <div class="sep"></div>
@@ -408,6 +413,19 @@
   <div class="panel">
     <button class="panel-close" onclick="closePanel('panel-lists')">✕</button>
     <h2>Lists</h2>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.45">Lists you create are yours only until you share the list ID and approve connect requests under <strong>Account</strong>.</p>
+    <div id="list-access-outgoing-wrap" style="display:none;margin-bottom:12px">
+      <div class="section-hdr" style="padding-top:0">Pending requests</div>
+      <div id="list-access-outgoing" style="font-size:13px;color:var(--text2)"></div>
+    </div>
+    <div class="field" style="margin-bottom:10px">
+      <label>Request access to a list</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="inp-list-request-id" type="text" placeholder="List ID (e.g. l1730…)" style="flex:1;min-width:160px"/>
+        <button type="button" class="btn-primary" onclick="submitListAccessRequest()">Request</button>
+      </div>
+      <p id="list-request-hint" style="font-size:11px;color:var(--text3);margin-top:6px;line-height:1.4"></p>
+    </div>
     <div id="lists-container"></div>
     <div class="sep"></div>
     <div class="section-hdr">Create new list</div>
@@ -585,7 +603,7 @@ async function loadDeckStateForActiveProfile() {
   columns = columnsRes.columns;
 
   apiFetch('/me')
-    .then((r) => { meProfile = r.user; updateProfilePanel(); })
+    .then((r) => { meProfile = r.user; updateProfilePanel(); renderListAccessUI(); })
     .catch((err) => { setProfilePanelTelegramError(err.message || 'Could not load Telegram account'); });
 }
 
@@ -834,7 +852,11 @@ function openPanel(id) {
   if (id==='panel-deck')      renderDeckPanel();
   if (id==='panel-add')       initAddPanel();
   if (id==='panel-following') renderFollowingPanel();
-  if (id==='panel-account')   { updateAccountDeckNameLine(); updateProfilePanel(); }
+  if (id==='panel-account')   {
+    updateAccountDeckNameLine();
+    updateProfilePanel();
+    refreshMeListAccess();
+  }
 }
 
 function closePanel(id) {
@@ -867,6 +889,130 @@ function setProfilePanelTelegramError(message) {
   updateProfilePanel();
 }
 
+function deckUsernameById(id) {
+  const u = profilesList.find((p) => p.id === id);
+  return u ? u.username : id;
+}
+
+async function refreshMeListAccess() {
+  try {
+    const r = await apiFetch('/me');
+    if (meProfile) {
+      meProfile.listAccess = r.user.listAccess;
+      if (r.user.deckUsername) meProfile.deckUsername = r.user.deckUsername;
+    } else {
+      meProfile = r.user;
+    }
+    renderListAccessUI();
+  } catch (_) {}
+}
+
+function renderListAccessUI() {
+  const incoming = (meProfile && meProfile.listAccess && meProfile.listAccess.incoming) || [];
+  const wrap = document.getElementById('list-access-incoming-wrap');
+  const box = document.getElementById('list-access-incoming');
+  if (wrap && box) {
+    if (!incoming.length) {
+      wrap.style.display = 'none';
+      box.innerHTML = '';
+    } else {
+      wrap.style.display = 'block';
+      box.innerHTML = incoming.map((row) => {
+        const lid = escAttr(row.listId);
+        const rid = escAttr(row.requesterId);
+        return `<div class="deck-col-item" style="margin-bottom:8px;align-items:flex-start">
+        <div class="li-text" style="flex:1">
+          <div class="dci-label" style="white-space:normal">${escHtml(row.requesterUsername)} wants access to <strong>${escHtml(row.listName)}</strong></div>
+          <div class="li-sub" style="margin-top:4px;font-family:JetBrains Mono,monospace;font-size:11px">${escHtml(row.listId)}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
+          <button type="button" class="btn-primary list-access-respond" style="padding:8px 12px;font-size:12px" data-la-list="${lid}" data-la-user="${rid}" data-la-action="allow">Allow</button>
+          <button type="button" class="btn-ghost list-access-respond" style="padding:8px 12px;font-size:12px;color:var(--danger);border-color:rgba(248,81,73,0.35)" data-la-list="${lid}" data-la-user="${rid}" data-la-action="block">Block</button>
+        </div>
+      </div>`;
+      }).join('');
+    }
+  }
+  const outW = document.getElementById('list-access-outgoing-wrap');
+  const outB = document.getElementById('list-access-outgoing');
+  const outgoing = (meProfile && meProfile.listAccess && meProfile.listAccess.outgoingPending) || [];
+  if (outW && outB) {
+    if (!outgoing.length) { outW.style.display = 'none'; outB.innerHTML = ''; }
+    else {
+      outW.style.display = 'block';
+      outB.innerHTML = '<ul style="margin:0;padding-left:18px;line-height:1.55">' + outgoing.map((o) =>
+        `<li>Waiting for <strong>${escHtml(o.ownerUsername)}</strong> to approve access to <strong>${escHtml(o.listName)}</strong></li>`
+      ).join('') + '</ul>';
+    }
+  }
+  const btn = document.getElementById('btn-account');
+  if (btn) {
+    btn.title = incoming.length ? `Account — ${incoming.length} list connect request(s)` : 'Account';
+  }
+}
+
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('.list-access-respond');
+  if (!t) return;
+  const listId = t.getAttribute('data-la-list');
+  const requesterId = t.getAttribute('data-la-user');
+  const action = t.getAttribute('data-la-action');
+  if (listId && requesterId && action) respondListAccess(listId, requesterId, action);
+});
+
+async function respondListAccess(listId, requesterId, action) {
+  try {
+    await apiFetch(`/lists/${encodeURIComponent(listId)}/access-respond`, { method: 'POST', body: { requesterId, action } });
+    showToast(action === 'allow' ? 'Access granted' : 'Request blocked');
+    await refreshMeListAccess();
+    const lr = await apiFetch('/lists');
+    lists = lr.lists;
+    renderListsPanel();
+    renderAllColumns();
+  } catch (err) {
+    showToast(err.message || 'Error', true);
+  }
+}
+
+async function submitListAccessRequest() {
+  const inp = document.getElementById('inp-list-request-id');
+  const hint = document.getElementById('list-request-hint');
+  const raw = (inp && inp.value || '').trim();
+  if (hint) hint.textContent = '';
+  if (!raw) return;
+  try {
+    const q = await apiFetch('/lists/lookup?id=' + encodeURIComponent(raw));
+    const lu = q.lookup;
+    if (!lu.exists) { if (hint) hint.textContent = 'No list with that ID.'; return; }
+    if (lu.youHaveAccess) { if (hint) hint.textContent = 'You already have access to this list.'; return; }
+    if (lu.legacyPublic) { if (hint) hint.textContent = 'This list is open to everyone — it should already appear in your Lists.'; return; }
+    if (lu.pending) { if (hint) hint.textContent = 'You already have a pending request.'; return; }
+    if (lu.blocked) { if (hint) hint.textContent = 'The list owner blocked further requests from you.'; return; }
+    if (!lu.canRequest) { if (hint) hint.textContent = 'You cannot request access to this list.'; return; }
+    await apiFetch('/lists/' + encodeURIComponent(raw) + '/access-request', { method: 'POST', body: {} });
+    if (hint) hint.textContent = 'Request sent. The owner can allow or block under Account.';
+    if (inp) inp.value = '';
+    await refreshMeListAccess();
+    if (openDrawerPanelId === 'panel-lists') renderListsPanel();
+  } catch (err) {
+    if (hint) hint.textContent = err.message || 'Error';
+  }
+}
+
+async function removeListMemberUI(listId, memberId) {
+  if (!confirm('Remove this collaborator from the list?')) return;
+  try {
+    await apiFetch(`/lists/${encodeURIComponent(listId)}/members/${encodeURIComponent(memberId)}`, { method: 'DELETE' });
+    showToast('Collaborator removed');
+    const lr = await apiFetch('/lists');
+    lists = lr.lists;
+    openListDetail(listId);
+    renderListsPanel();
+  } catch (err) {
+    showToast(err.message || 'Error', true);
+  }
+}
+
 function updateProfilePanel() {
   const statusEl = document.getElementById('pa-status');
   const strong = statusEl.parentElement && statusEl.parentElement.querySelector('strong');
@@ -890,6 +1036,7 @@ function updateProfilePanel() {
     ? 'Server Telegram connection is active (your personal Telegram account is not shown here).'
     : 'Checking connection…';
   updateAccountDeckNameLine();
+  renderListAccessUI();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -970,27 +1117,60 @@ async function addAccountSubmit() {
 // ══════════════════════════════════════════════════════════
 //  LISTS PANEL
 // ══════════════════════════════════════════════════════════
+function listRoleLabel(list) {
+  if (list.myRole === 'owner') return 'Owner';
+  if (list.myRole === 'member') return 'Collaborator';
+  if (list.legacyPublic && !list.ownerId) return 'Shared (legacy)';
+  return '';
+}
+
+function canDeleteListRow(list) {
+  return list.myRole === 'owner' || (list.legacyPublic && !list.ownerId);
+}
+
+async function copyListId(id) {
+  try {
+    await navigator.clipboard.writeText(id);
+    showToast('List ID copied');
+  } catch (_) {
+    try {
+      prompt('Copy list ID:', id);
+    } catch (__) {}
+  }
+}
+
 function renderListsPanel() {
   const c = document.getElementById('lists-container');
   c.innerHTML = '';
-  if (!lists.length) { c.innerHTML='<div class="empty-state"><p>No lists yet. Create one below.</p></div>'; return; }
+  if (!lists.length) { c.innerHTML='<div class="empty-state"><p>No lists yet. Create one below, or request access with a list ID.</p></div>'; return; }
   lists.forEach(list => {
     const inDeck = columns.some(col=>col.type==='list'&&col.ref===list.id);
+    const role = listRoleLabel(list);
+    const sub = [role, `${list.accounts.length} account${list.accounts.length!==1?'s':''}`].filter(Boolean).join(' · ');
+    const delBtn = canDeleteListRow(list)
+      ? `<button class="icon-btn danger" title="Delete list" onclick="deleteListUI('${list.id}')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="m19 6-.867 14.142A2 2 0 0 1 16.138 22H7.862a2 2 0 0 1-1.995-1.858L5 6"/></svg>
+        </button>`
+      : '';
+    const copyBtn = list.myRole === 'owner'
+      ? `<button class="icon-btn" title="Copy list ID to share" onclick="copyListId('${list.id}')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>`
+      : '';
     const div = document.createElement('div');
     div.className = 'list-item';
     div.innerHTML = `
       <div class="li-icon">${listInitial(list.name)}</div>
-      <div class="li-text"><div class="li-name">${escHtml(list.name)}</div><div class="li-sub">${list.accounts.length} account${list.accounts.length!==1?'s':''}</div></div>
+      <div class="li-text"><div class="li-name">${escHtml(list.name)}</div><div class="li-sub">${escHtml(sub)}</div></div>
       <div class="li-actions">
         <button class="icon-btn" title="View accounts" onclick="openListDetail('${list.id}')">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
         </button>
+        ${copyBtn}
         <button class="icon-btn" title="${inDeck?'Remove from deck':'Add to deck'}" style="${inDeck?'color:var(--accent)':''}" onclick="toggleListInDeck('${list.id}',this)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="5" height="18" rx="1"/><rect x="9" y="3" width="5" height="18" rx="1"/><rect x="16" y="3" width="6" height="18" rx="1"/></svg>
         </button>
-        <button class="icon-btn danger" onclick="deleteListUI('${list.id}')">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="m19 6-.867 14.142A2 2 0 0 1 16.138 22H7.862a2 2 0 0 1-1.995-1.858L5 6"/></svg>
-        </button>
+        ${delBtn}
       </div>`;
     c.appendChild(div);
   });
@@ -1002,7 +1182,37 @@ async function openListDetail(listId) {
   document.getElementById('list-detail-title').textContent = list.name;
   const c = document.getElementById('list-detail-accounts');
   c.innerHTML = '';
-  if (!list.accounts.length) { c.innerHTML='<div class="empty-state"><p>No accounts yet. Add one via the + button.</p></div>'; }
+  if (list.myRole === 'owner' && list.memberIds && list.memberIds.length) {
+    const hdr = document.createElement('div');
+    hdr.className = 'section-hdr';
+    hdr.textContent = 'Collaborators';
+    c.appendChild(hdr);
+    list.memberIds.forEach((mid) => {
+      const un = deckUsernameById(mid);
+      const div = document.createElement('div');
+      div.className = 'list-item';
+      div.innerHTML = `
+        <div class="li-icon" style="font-size:12px;font-weight:600">@</div>
+        <div class="li-text"><div class="li-name">${escHtml(un)}</div><div class="li-sub">${escHtml(mid)}</div></div>
+        <button class="icon-btn danger" title="Remove collaborator" onclick="removeListMemberUI('${listId}','${mid}')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>`;
+      c.appendChild(div);
+    });
+    const sep = document.createElement('div');
+    sep.className = 'sep';
+    c.appendChild(sep);
+    const ah = document.createElement('div');
+    ah.className = 'section-hdr';
+    ah.textContent = 'Accounts in list';
+    c.appendChild(ah);
+  }
+  if (!list.accounts.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty-state';
+    empty.innerHTML = '<p>No accounts yet. Add one via the + button.</p>';
+    c.appendChild(empty);
+  }
   list.accounts.forEach(handle => {
     const info = entityCache[handle] || { name: handle.replace('@',''), handle, color: entityColor(handle) };
     const div = document.createElement('div');
@@ -1045,7 +1255,12 @@ async function toggleListInDeck(listId, btn) {
 
 async function deleteListUI(listId) {
   if (!confirm('Delete this list?')) return;
-  await apiFetch('/lists/'+listId, { method:'DELETE' }).catch(()=>{});
+  try {
+    await apiFetch('/lists/'+encodeURIComponent(listId), { method:'DELETE' });
+  } catch (e) {
+    showToast(e.message || 'Could not delete list', true);
+    return;
+  }
   lists = lists.filter(l=>l.id!==listId);
   columns = columns.filter(c=>!(c.type==='list'&&c.ref===listId));
   renderListsPanel();

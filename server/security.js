@@ -5,6 +5,8 @@
 const USERNAME_RE = /^[a-zA-Z][a-zA-Z0-9_]{3,30}$/;
 const MSG_ID_RE   = /^\d{1,15}$/;
 const DECK_USER_ID_RE = /^(d_|p_)[a-zA-Z0-9_]{2,128}$/;
+/** List ids created by the app look like l1730…; allow alphanumeric for hand-edited state */
+const LIST_ID_RE = /^l[a-zA-Z0-9_]{2,64}$/;
 const DECK_USERNAME_RE = /^[a-zA-Z0-9_]{2,32}$/;
 const MAX_SESSION_STRING = 20000;
 const MAX_DECK_USERNAME_LEN = 32;
@@ -20,6 +22,10 @@ function isValidMessageId(raw) {
 
 function isValidDeckUserId(raw) {
   return typeof raw === 'string' && DECK_USER_ID_RE.test(raw);
+}
+
+function isValidListId(raw) {
+  return typeof raw === 'string' && LIST_ID_RE.test(raw);
 }
 
 function isValidDeckUsername(raw) {
@@ -45,6 +51,7 @@ module.exports = {
   isValidPublicUsername,
   isValidMessageId,
   isValidDeckUserId,
+  isValidListId,
   isValidDeckUsername,
   sanitizeDeckUsername,
   isValidSessionString,

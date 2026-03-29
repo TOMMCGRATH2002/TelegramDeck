@@ -1,7 +1,8 @@
 /**
  * state.js — JSON persistence
  *
- * Shared: lists (everyone on this server)
+ * Shared: lists (private by owner; collaborators via access requests)
+ * Legacy lists without ownerId remain "legacy public" (any signed-in deck user).
  * One Telegram MTProto session for the whole server (env TELEGRAM_SESSION or migrated into telegram.session)
  * Per deck user: username (login), individual follows, deck columns, UI settings
  */
@@ -148,9 +149,37 @@ function save(state) {
 }
 
 let _state = load();
-_state.lists.forEach((l) => {
+
+function normalizeListInPlace(l) {
+  if (!l || typeof l !== 'object') return;
   if (!Array.isArray(l.accounts)) l.accounts = [];
-});
+  if (!Array.isArray(l.memberIds)) l.memberIds = [];
+  if (!Array.isArray(l.pendingRequests)) l.pendingRequests = [];
+  if (!Array.isArray(l.blockedUserIds)) l.blockedUserIds = [];
+  l.pendingRequests = l.pendingRequests.filter(
+    (r) => r && typeof r === 'object' && r.userId && typeof r.at === 'number'
+  );
+  l.memberIds = [...new Set(l.memberIds.filter(Boolean))];
+  l.blockedUserIds = [...new Set(l.blockedUserIds.filter(Boolean))];
+  if (!l.ownerId) {
+    l.legacyPublic = true;
+  } else {
+    l.legacyPublic = false;
+    if (l.memberIds.includes(l.ownerId)) {
+      l.memberIds = l.memberIds.filter((id) => id !== l.ownerId);
+    }
+  }
+}
+
+_state.lists.forEach(normalizeListInPlace);
+
+function canDeleteListRecord(list, deckUserId) {
+  if (!list || !deckUserId) return false;
+  normalizeListInPlace(list);
+  if (list.ownerId === deckUserId) return true;
+  if (list.legacyPublic && !list.ownerId) return true;
+  return false;
+}
 
 function ensureDeckUserShape(u) {
   if (!u || typeof u !== 'object') return null;
@@ -236,23 +265,171 @@ const state = {
     save(_state);
   },
 
-  // Lists (shared)
+  listRoleForUser(list, deckUserId) {
+    if (!list || !deckUserId) return null;
+    if (list.legacyPublic && !list.ownerId) return 'legacy';
+    if (list.ownerId === deckUserId) return 'owner';
+    if (list.memberIds.includes(deckUserId)) return 'member';
+    return null;
+  },
+
+  canAccessList(list, deckUserId) {
+    return this.listRoleForUser(list, deckUserId) != null;
+  },
+
+  canEditListContents(list, deckUserId) {
+    const r = this.listRoleForUser(list, deckUserId);
+    return r === 'owner' || r === 'member' || r === 'legacy';
+  },
+
+  canDeleteList(list, deckUserId) {
+    const r = this.listRoleForUser(list, deckUserId);
+    if (r === 'owner') return true;
+    if (r === 'legacy') return true;
+    return false;
+  },
+
+  getListsVisibleToDeckUser(deckUserId) {
+    return _state.lists.filter((l) => this.canAccessList(l, deckUserId));
+  },
+
+  listToClient(list, deckUserId) {
+    const role = this.listRoleForUser(list, deckUserId);
+    const base = {
+      id: list.id,
+      name: list.name,
+      emoji: list.emoji || '',
+      accounts: list.accounts,
+      myRole: role,
+      ownerId: list.ownerId || null,
+      legacyPublic: !!list.legacyPublic && !list.ownerId,
+    };
+    if (role === 'owner') {
+      base.pendingRequests = (list.pendingRequests || []).map((r) => ({ ...r }));
+      base.memberIds = [...(list.memberIds || [])];
+    }
+    return base;
+  },
+
+  getListAccessSummaryForDeckUser(deckUserId) {
+    const incoming = [];
+    const outgoingPending = [];
+    for (const list of _state.lists) {
+      if (list.ownerId === deckUserId && list.pendingRequests && list.pendingRequests.length) {
+        for (const pr of list.pendingRequests) {
+          incoming.push({
+            listId: list.id,
+            listName: list.name,
+            requesterId: pr.userId,
+            requestedAt: pr.at,
+          });
+        }
+      }
+      const pend = (list.pendingRequests || []).find((r) => r.userId === deckUserId);
+      if (pend && list.ownerId && list.ownerId !== deckUserId) {
+        const owner = _state.deckUsers[list.ownerId];
+        outgoingPending.push({
+          listId: list.id,
+          listName: list.name,
+          ownerUsername: owner ? owner.username : list.ownerId,
+          requestedAt: pend.at,
+        });
+      }
+    }
+    return { incoming, outgoingPending };
+  },
+
+  getListLookupForRequester(listId, deckUserId) {
+    const list = _state.lists.find((l) => l.id === listId);
+    if (!list) return { exists: false };
+    normalizeListInPlace(list);
+    const role = this.listRoleForUser(list, deckUserId);
+    const blocked = list.blockedUserIds.includes(deckUserId);
+    const pending = list.pendingRequests.some((r) => r.userId === deckUserId);
+    const isLegacy = list.legacyPublic && !list.ownerId;
+    return {
+      exists: true,
+      name: list.name,
+      youHaveAccess: role != null,
+      canRequest:
+        !isLegacy
+        && list.ownerId
+        && list.ownerId !== deckUserId
+        && role == null
+        && !blocked
+        && !pending,
+      pending,
+      blocked,
+      legacyPublic: isLegacy,
+    };
+  },
+
+  addListAccessRequest(listId, requesterId) {
+    const list = _state.lists.find((l) => l.id === listId);
+    if (!list) throw new Error('List not found');
+    normalizeListInPlace(list);
+    if (list.legacyPublic && !list.ownerId) throw new Error('This list is open to everyone on the server');
+    if (!list.ownerId) throw new Error('List has no owner');
+    if (list.ownerId === requesterId) throw new Error('You already own this list');
+    if (list.memberIds.includes(requesterId)) throw new Error('You already have access');
+    if (list.blockedUserIds.includes(requesterId)) throw new Error('The list owner has blocked your requests');
+    if (list.pendingRequests.some((r) => r.userId === requesterId)) throw new Error('Request already pending');
+    list.pendingRequests.push({ userId: requesterId, at: Date.now() });
+    save(_state);
+  },
+
+  respondToListAccessRequest(listId, ownerId, requesterId, action) {
+    const list = _state.lists.find((l) => l.id === listId);
+    if (!list) throw new Error('List not found');
+    normalizeListInPlace(list);
+    if (list.ownerId !== ownerId) throw new Error('Only the list creator can respond');
+    const idx = list.pendingRequests.findIndex((r) => r.userId === requesterId);
+    if (idx < 0) throw new Error('No pending request from that user');
+    list.pendingRequests.splice(idx, 1);
+    if (action === 'allow') {
+      if (!list.memberIds.includes(requesterId)) list.memberIds.push(requesterId);
+      list.blockedUserIds = list.blockedUserIds.filter((id) => id !== requesterId);
+    } else if (action === 'block') {
+      if (!list.blockedUserIds.includes(requesterId)) list.blockedUserIds.push(requesterId);
+    } else {
+      throw new Error('Invalid action');
+    }
+    save(_state);
+  },
+
+  removeListMember(listId, ownerId, memberId) {
+    const list = _state.lists.find((l) => l.id === listId);
+    if (!list) throw new Error('List not found');
+    normalizeListInPlace(list);
+    if (list.ownerId !== ownerId) throw new Error('Only the list creator can remove members');
+    if (memberId === ownerId) throw new Error('Cannot remove yourself');
+    list.memberIds = list.memberIds.filter((id) => id !== memberId);
+    save(_state);
+  },
+
+  // Lists (shared storage, access-controlled per deck user)
   getLists() { return _state.lists; },
   getList(id) { return _state.lists.find(l => l.id === id); },
   addList(list) {
+    normalizeListInPlace(list);
     _state.lists.push(list);
     save(_state);
   },
   updateList(id, patch) {
     const idx = _state.lists.findIndex(l => l.id === id);
-    if (idx >= 0) { _state.lists[idx] = { ..._state.lists[idx], ...patch }; save(_state); }
+    if (idx >= 0) { _state.lists[idx] = { ..._state.lists[idx], ...patch }; normalizeListInPlace(_state.lists[idx]); save(_state); }
   },
-  deleteList(id) {
+  deleteList(id, deckUserId) {
+    const list = _state.lists.find((l) => l.id === id);
+    if (!list) return false;
+    normalizeListInPlace(list);
+    if (!canDeleteListRecord(list, deckUserId)) return false;
     _state.lists = _state.lists.filter(l => l.id !== id);
     Object.values(_state.deckUsers).forEach(p => {
       p.columns = (p.columns || []).filter(c => !(c.type === 'list' && c.ref === id));
     });
     save(_state);
+    return true;
   },
   addAccountToList(listId, handle) {
     const list = _state.lists.find(l => l.id === listId);

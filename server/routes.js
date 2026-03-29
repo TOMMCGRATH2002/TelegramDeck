@@ -16,6 +16,7 @@ const {
   isValidPublicUsername,
   isValidMessageId,
   isValidDeckUserId,
+  isValidListId,
   isValidDeckUsername,
   sanitizeDeckUsername,
 } = require('./security');
@@ -183,11 +184,20 @@ router.get('/me', requireDeckUser, async (req, res) => {
   try {
     await tg.ensureConnected(req.deckUserId);
     const du = state.getDeckUser(req.deckUserId);
+    const raw = state.getListAccessSummaryForDeckUser(req.deckUserId);
+    const incoming = raw.incoming.map((row) => {
+      const ru = state.getDeckUser(row.requesterId);
+      return {
+        ...row,
+        requesterUsername: ru ? ru.username : row.requesterId,
+      };
+    });
     ok(res, {
       user: {
         deckUsername: du ? du.username : '',
         deckUserId: req.deckUserId,
         telegramConnected: true,
+        listAccess: { incoming, outgoingPending: raw.outgoingPending },
       },
     });
   } catch (err) {
@@ -374,31 +384,100 @@ router.delete('/following/:handle', requireDeckUser, (req, res) => {
   ok(res, { handle });
 });
 
-// ─── Lists (shared) ───────────────────────────────────────────
+// ─── Lists (private by owner; collaborators via access requests) ─
 
-router.get('/lists', (req, res) => {
-  ok(res, { lists: state.getLists() });
+function requireListEditAccess(req, res, next) {
+  const listId = req.params.id;
+  if (!isValidListId(listId)) return fail(res, 'Invalid list id', 400);
+  const list = state.getList(listId);
+  if (!list) return fail(res, 'List not found', 404);
+  if (!state.canEditListContents(list, req.deckUserId)) {
+    return fail(res, 'You do not have access to edit this list.', 403);
+  }
+  req.list = list;
+  next();
+}
+
+router.get('/lists', requireDeckUser, (req, res) => {
+  const lists = state.getListsVisibleToDeckUser(req.deckUserId).map((l) =>
+    state.listToClient(l, req.deckUserId)
+  );
+  ok(res, { lists });
+});
+
+router.get('/lists/lookup', requireDeckUser, (req, res) => {
+  const listId = req.query.id != null ? String(req.query.id) : '';
+  if (!isValidListId(listId)) return fail(res, 'Invalid list id', 400);
+  const info = state.getListLookupForRequester(listId, req.deckUserId);
+  ok(res, { lookup: info });
 });
 
 router.post('/lists', requireDeckUser, (req, res) => {
   const { name, emoji } = req.body;
   if (!name) return fail(res, 'name is required');
   const list = {
-    id:       'l' + Date.now(),
+    id: 'l' + Date.now(),
     name,
-    emoji:    typeof emoji === 'string' ? emoji : '',
+    emoji: typeof emoji === 'string' ? emoji : '',
     accounts: [],
+    ownerId: req.deckUserId,
+    memberIds: [],
+    pendingRequests: [],
+    blockedUserIds: [],
+    legacyPublic: false,
   };
   state.addList(list);
-  ok(res, { list });
+  ok(res, { list: state.listToClient(list, req.deckUserId) });
 });
 
 router.delete('/lists/:id', requireDeckUser, (req, res) => {
-  state.deleteList(req.params.id);
-  ok(res, { id: req.params.id });
+  const listId = req.params.id;
+  if (!isValidListId(listId)) return fail(res, 'Invalid list id', 400);
+  const removed = state.deleteList(listId, req.deckUserId);
+  if (!removed) return fail(res, 'List not found or you cannot delete it.', 403);
+  ok(res, { id: listId });
 });
 
-router.post('/lists/:id/accounts', requireDeckUser, async (req, res) => {
+router.post('/lists/:id/access-request', requireDeckUser, (req, res) => {
+  const listId = req.params.id;
+  if (!isValidListId(listId)) return fail(res, 'Invalid list id', 400);
+  try {
+    state.addListAccessRequest(listId, req.deckUserId);
+    ok(res, { listId });
+  } catch (err) {
+    fail(res, err.message);
+  }
+});
+
+router.post('/lists/:id/access-respond', requireDeckUser, (req, res) => {
+  const listId = req.params.id;
+  if (!isValidListId(listId)) return fail(res, 'Invalid list id', 400);
+  const requesterId = req.body && req.body.requesterId != null ? String(req.body.requesterId) : '';
+  const action = req.body && req.body.action != null ? String(req.body.action) : '';
+  if (!isValidDeckUserId(requesterId)) return fail(res, 'Invalid requester id', 400);
+  if (action !== 'allow' && action !== 'block') return fail(res, 'action must be allow or block', 400);
+  try {
+    state.respondToListAccessRequest(listId, req.deckUserId, requesterId, action);
+    ok(res, { listId, requesterId, action });
+  } catch (err) {
+    fail(res, err.message);
+  }
+});
+
+router.delete('/lists/:id/members/:userId', requireDeckUser, (req, res) => {
+  const listId = req.params.id;
+  const memberId = req.params.userId;
+  if (!isValidListId(listId)) return fail(res, 'Invalid list id', 400);
+  if (!isValidDeckUserId(memberId)) return fail(res, 'Invalid member id', 400);
+  try {
+    state.removeListMember(listId, req.deckUserId, memberId);
+    ok(res, { listId, memberId });
+  } catch (err) {
+    fail(res, err.message);
+  }
+});
+
+router.post('/lists/:id/accounts', requireDeckUser, requireListEditAccess, async (req, res) => {
   try {
     const handle = normaliseHandle(req.body.handle);
     if (!handle) return fail(res, 'handle is required');
@@ -410,7 +489,7 @@ router.post('/lists/:id/accounts', requireDeckUser, async (req, res) => {
   }
 });
 
-router.delete('/lists/:id/accounts/:handle', requireDeckUser, (req, res) => {
+router.delete('/lists/:id/accounts/:handle', requireDeckUser, requireListEditAccess, (req, res) => {
   const handle = normaliseHandle(req.params.handle);
   state.removeAccountFromList(req.params.id, handle);
   ok(res, { listId: req.params.id, handle });
