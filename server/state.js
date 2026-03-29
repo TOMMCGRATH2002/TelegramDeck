@@ -15,6 +15,8 @@ const STATE_FILE = path.join(__dirname, '..', 'data', 'state.json');
 const DEFAULT_PROFILE_SETTINGS = {
   autoTranslate: false,
   darkMode: true,
+  /** 'dark' | 'light' | 'navy' — darkMode kept in sync for older clients */
+  colorTheme: 'dark',
   sidebarExpanded: false,
 };
 
@@ -523,12 +525,25 @@ const state = {
 
   getSettings(deckUserId) {
     const u = getDeckUser(deckUserId);
-    return u ? { ...u.settings } : { ...DEFAULT_PROFILE_SETTINGS };
+    const raw = u ? { ...DEFAULT_PROFILE_SETTINGS, ...u.settings } : { ...DEFAULT_PROFILE_SETTINGS };
+    const allowed = new Set(['dark', 'light', 'navy']);
+    if (raw.colorTheme == null || !allowed.has(String(raw.colorTheme))) {
+      raw.colorTheme = raw.darkMode === false ? 'light' : 'dark';
+    }
+    return raw;
   },
   updateSettings(deckUserId, patch) {
     const u = _state.deckUsers[deckUserId];
     if (!u) throw new Error('User not found');
-    u.settings = { ...u.settings, ...patch };
+    const p = { ...patch };
+    const allowed = new Set(['dark', 'light', 'navy']);
+    if (p.colorTheme != null && allowed.has(String(p.colorTheme))) {
+      p.colorTheme = String(p.colorTheme);
+      p.darkMode = p.colorTheme !== 'light';
+    } else if (Object.prototype.hasOwnProperty.call(p, 'darkMode')) {
+      p.colorTheme = p.darkMode ? 'dark' : 'light';
+    }
+    u.settings = { ...u.settings, ...p };
     save(_state);
   },
 };

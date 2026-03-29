@@ -28,6 +28,23 @@
     --text:#14171a;--text2:#657786;--text3:#8899a6;
     --accent-glow:rgba(29,161,242,0.12);--shadow:none;
   }
+  body.theme-navy {
+    --bg:#040a14;--bg2:#071222;--bg3:#0c1a2e;--bg4:#152642;
+    --border:#1e3a5c;--border2:#2a5080;
+    --text:#e8f0fb;--text2:#97b0d4;--text3:#6b849e;
+    --accent:#5b9fff;--accent2:#7ab3ff;--accent-glow:rgba(91,159,255,0.2);
+    --danger:#ff6b7a;--success:#3dd68c;--warn:#ffcc66;
+  }
+  body.theme-navy .profile-avatar{background:linear-gradient(135deg,var(--accent),#2a5a9e);}
+  @keyframes lw-drift{
+    0%{transform:translateX(0);}
+    100%{transform:translateX(22px);}
+  }
+  .lw-flow{animation:lw-drift 2.8s linear infinite;will-change:transform;}
+  .sb-logo-water-thumb{display:none;width:44px;height:44px;border-radius:12px;overflow:hidden;align-items:center;justify-content:center;background:transparent;flex-shrink:0;}
+  .sb-logo-water-svg{display:block;width:100%;height:100%;}
+  body.theme-navy .sb-logo-img-wrap{display:none!important;}
+  body.theme-navy .sb-logo-water-thumb{display:flex!important;}
   *{margin:0;padding:0;box-sizing:border-box;}
   body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;height:100vh;overflow:hidden;transition:background var(--transition),color var(--transition);}
   .app-frame{display:flex;flex:1;min-height:0;min-width:0;width:100%;align-items:stretch;}
@@ -179,9 +196,13 @@
   .post-card:hover{background:var(--bg3);}
   .post-card:last-child{border-bottom:none;}
   @keyframes postIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
-  .post-header{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
-  .post-info{flex:1;min-width:0;}
+  .post-header{display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;}
+  .post-header-meta{flex:1;min-width:0;}
+  .post-name-row{display:flex;align-items:baseline;justify-content:space-between;gap:8px;width:100%;}
+  .post-name-row .post-name{flex:1;min-width:0;}
+  .post-name-row .post-time{flex-shrink:0;}
   .post-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .post-body{margin-left:0;}
   .post-handle{font-size:11px;color:var(--text2);font-family:'JetBrains Mono',monospace;}
   .post-time{font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace;white-space:nowrap;}
   .post-text{font-size:13px;line-height:1.55;color:var(--text);word-break:break-word;}
@@ -216,7 +237,7 @@
     .account-mobile-only{display:none!important;}
   }
   @media (max-width:900px){
-    :root{--mobile-topbar-h:52px;}
+    :root{--post-avatar-w:34px;--post-avatar-gap:8px;}
     .sb-hide-mobile{display:none!important;}
     #sidebar .sb-logo-btn{order:0;}
     #btn-add{order:1;}
@@ -225,14 +246,15 @@
     .app-frame{flex-direction:column;}
     #sidebar{
       width:100%!important;min-width:0!important;max-height:none;
-      flex-direction:row;flex-wrap:nowrap;align-items:center;justify-content:flex-start;
-      gap:2px;padding:6px 8px;
+      flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:center;
+      align-content:flex-start;
+      gap:8px 6px;padding:10px 8px 8px;
       padding-left:max(8px,env(safe-area-inset-left));
       padding-right:max(8px,env(safe-area-inset-right));
-      padding-top:max(6px,env(safe-area-inset-top));
-      overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;
+      padding-top:max(10px,env(safe-area-inset-top));
+      overflow-x:visible;overflow-y:visible;
       scrollbar-width:none;border-right:none;border-bottom:1px solid var(--border);
-      flex-shrink:0;min-height:var(--mobile-topbar-h);
+      flex-shrink:0;min-height:0;
     }
     #sidebar::-webkit-scrollbar{display:none;width:0;height:0;}
     #sidebar.expanded{width:100%!important;min-width:0!important;align-items:center;}
@@ -240,13 +262,19 @@
     .sb-bottom{flex-direction:row;margin-left:auto;flex-shrink:0;width:auto;gap:0;align-items:center;}
     .expand-btn{display:none!important;}
     .sb-logo-btn{
-      margin-bottom:0;margin-right:2px;background:transparent;
-      box-shadow:none;width:44px!important;min-width:44px!important;max-width:44px!important;
-      overflow:hidden;
+      margin-bottom:0;margin-right:0!important;background:transparent;
+      box-shadow:none;
+      flex:0 0 100%;
+      width:100%!important;min-width:0!important;max-width:none!important;
+      overflow:hidden;justify-content:center;
     }
     .sb-logo-btn:hover{transform:none;box-shadow:none;}
     .sb-logo-btn:hover .sb-logo-img{filter:none;}
-    #sidebar.expanded .sb-logo-btn{width:44px!important;min-width:44px!important;max-width:44px!important;padding:0;justify-content:center;}
+    #sidebar.expanded .sb-logo-btn{
+      flex:0 0 100%;
+      width:100%!important;min-width:0!important;max-width:none!important;
+      padding:0 8px;justify-content:center;
+    }
     #sidebar .sb-btn{
       width:44px!important;min-width:44px!important;max-width:44px!important;
       padding-left:0!important;padding-right:0!important;justify-content:center!important;gap:0!important;
@@ -272,6 +300,8 @@
     #columns-wrap{padding-bottom:env(safe-area-inset-bottom);}
     .post-media-img,.post-media-video{max-height:min(360px,55vh);}
     .col-body{-webkit-overflow-scrolling:touch;}
+    .post-body{margin-left:calc(var(--post-avatar-w) + var(--post-avatar-gap));}
+    .post-header{margin-bottom:4px;}
   }
 </style>
 </head>
@@ -294,7 +324,19 @@
 <!-- ── SIDEBAR ── -->
 <nav id="sidebar">
   <button class="sb-logo-btn" onclick="location.reload()" title="TelegramDeck — refresh" type="button">
-    <span class="sb-logo-thumb" aria-hidden="true"><img class="sb-logo-img" src="/logo.png" alt="" decoding="async"/></span>
+    <span class="sb-logo-thumb sb-logo-img-wrap" aria-hidden="true"><img class="sb-logo-img" src="/logo.png" alt="" decoding="async"/></span>
+    <span class="sb-logo-thumb sb-logo-water-thumb" aria-hidden="true">
+      <svg class="sb-logo-water-svg" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" focusable="false">
+        <defs><clipPath id="lw-logo-clip"><circle cx="24" cy="24" r="21"/></clipPath></defs>
+        <g clip-path="url(#lw-logo-clip)">
+          <rect width="48" height="48" fill="#071525"/>
+          <g class="lw-flow">
+            <path fill="#4a8fd9" d="M-56 23c16-9 31 9 47 0s31 9 47 0 31 9 47 0 31 9 47 0v26H-56z" opacity="0.55"/>
+            <path fill="#9fd4ff" d="M-56 28c18 11 33-9 51 0s33-9 51 0 33-9 51 0 33-9 51 0v22H-56z" opacity="0.38"/>
+          </g>
+        </g>
+      </svg>
+    </span>
     <span class="sb-logo-label">TelegramDeck</span>
   </button>
 
@@ -332,9 +374,10 @@
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
       <span class="btn-label">Pop out</span>
     </button>
-    <button class="sb-btn" id="btn-theme" type="button" onclick="toggleTheme()" title="Toggle light / dark">
+    <button class="sb-btn" id="btn-theme" type="button" onclick="cycleColorTheme()" title="Theme: dark, light, or navy (tap to cycle)">
       <svg id="icon-theme-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
       <svg id="icon-theme-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      <svg id="icon-theme-navy" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none" aria-hidden="true"><path d="M2 14c2.5-1.5 5-.5 7.5 0s5-.5 7.5 0 5-.5 7.5 0 5-.5 7.5 0"/><path d="M2 18c2.5-1.2 5-.3 7.5.2s5-.3 7.5.2 5-.3 7.5.2 5-.3 7.5.2" opacity="0.65"/><path d="M2 10c2.5-1.8 5-.2 7.5.5s5-.2 7.5.5 5-.2 7.5.5 5-.2 7.5.5" opacity="0.45"/></svg>
       <span class="btn-label">Theme</span>
     </button>
     <button class="expand-btn" onclick="toggleSidebar()">
@@ -370,10 +413,11 @@
     <div class="account-mobile-only" style="margin-top:14px">
       <div class="section-hdr" style="padding-top:0">Quick settings</div>
       <button type="button" class="btn-ghost" id="btn-translate-account" style="width:100%;margin-bottom:8px;justify-content:center" onclick="toggleTranslate()">Auto-translate</button>
-      <button type="button" class="btn-ghost" id="btn-theme-account" style="width:100%;margin-bottom:12px;justify-content:center;display:flex;align-items:center;gap:10px" onclick="toggleTheme()">
+      <button type="button" class="btn-ghost" id="btn-theme-account" style="width:100%;margin-bottom:12px;justify-content:center;display:flex;align-items:center;gap:10px" onclick="cycleColorTheme()">
         <svg class="acc-theme-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
         <svg class="acc-theme-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
-        <span>Light / dark</span>
+        <svg class="acc-theme-navy" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M2 14c2.5-1.5 5-.5 7.5 0s5-.5 7.5 0 5-.5 7.5 0 5-.5 7.5 0"/><path d="M2 18c2.5-1.2 5-.3 7.5.2s5-.3 7.5.2 5-.3 7.5.2 5-.3 7.5.2" opacity="0.65"/><path d="M2 10c2.5-1.8 5-.2 7.5.5s5-.2 7.5.5 5-.2 7.5.5 5-.2 7.5.5" opacity="0.45"/></svg>
+        <span>Theme (dark · light · navy)</span>
       </button>
       <div class="section-hdr" style="padding-top:0">Following</div>
       <p style="font-size:12px;color:var(--text2);margin-bottom:8px;line-height:1.45">Accounts you follow individually (not via a list).</p>
@@ -503,7 +547,8 @@ const AVATAR_COLORS = ['#2aabee','#e86b5f','#3fb950','#e3b341','#a371f7','#ec7ab
 let columns         = [];
 let lists           = [];
 let following       = [];
-let settings        = { autoTranslate: false, darkMode: true, sidebarExpanded: false };
+let settings        = { autoTranslate: false, darkMode: true, colorTheme: 'dark', sidebarExpanded: false };
+let colorTheme      = 'dark';
 let meProfile       = null;
 let dragColId       = null;
 let addMode         = 'me';
@@ -633,12 +678,16 @@ async function loadDeckStateForActiveProfile() {
   try {
     const s = await apiFetch('/settings');
     settings = s.settings;
-  } catch (_) { settings = { autoTranslate: false, darkMode: true, sidebarExpanded: false }; }
+  } catch (_) {
+    settings = { autoTranslate: false, darkMode: true, colorTheme: 'dark', sidebarExpanded: false };
+  }
 
-  darkMode = settings.darkMode !== false;
-  if (!darkMode) document.body.classList.add('light');
-  else document.body.classList.remove('light');
-  syncThemeBtn();
+  const allowedThemes = new Set(['dark', 'light', 'navy']);
+  let ct = settings.colorTheme;
+  if (!allowedThemes.has(String(ct))) {
+    ct = settings.darkMode === false ? 'light' : 'dark';
+  }
+  applyColorTheme(ct);
   syncTranslateBtns();
   if (settings.sidebarExpanded) { sidebarExpanded = true; document.getElementById('sidebar').classList.add('expanded'); }
   else { sidebarExpanded = false; document.getElementById('sidebar').classList.remove('expanded'); }
@@ -818,33 +867,52 @@ function toggleSidebar() {
   apiFetch('/settings', { method:'PATCH', body: { sidebarExpanded } }).catch(()=>{});
 }
 
-let darkMode = true;
+const META_THEME_COLORS = { dark: '#000000', light: '#f5f8fa', navy: '#040a14' };
+function updateMetaThemeColor(t) {
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', META_THEME_COLORS[t] || META_THEME_COLORS.dark);
+}
+function applyColorTheme(t) {
+  const allowed = new Set(['dark', 'light', 'navy']);
+  if (!allowed.has(String(t))) t = 'dark';
+  colorTheme = t;
+  document.body.classList.remove('light', 'theme-navy');
+  if (t === 'light') document.body.classList.add('light');
+  else if (t === 'navy') document.body.classList.add('theme-navy');
+  settings.colorTheme = t;
+  settings.darkMode = t !== 'light';
+  syncThemeBtn();
+  updateMetaThemeColor(t);
+}
+function cycleColorTheme() {
+  const order = ['dark', 'light', 'navy'];
+  const i = order.indexOf(colorTheme);
+  const next = order[(i < 0 ? 0 : i + 1) % order.length];
+  applyColorTheme(next);
+  apiFetch('/settings', { method: 'PATCH', body: { colorTheme: next, darkMode: settings.darkMode } }).catch(() => {});
+}
 function syncThemeBtn() {
   const moon = document.getElementById('icon-theme-moon');
   const sun = document.getElementById('icon-theme-sun');
-  if (moon && sun) {
-    if (darkMode) { moon.style.display = ''; sun.style.display = 'none'; }
-    else { moon.style.display = 'none'; sun.style.display = ''; }
-  }
+  const navy = document.getElementById('icon-theme-navy');
+  const showMoon = colorTheme === 'dark';
+  const showSun = colorTheme === 'light';
+  const showNavy = colorTheme === 'navy';
+  if (moon) moon.style.display = showMoon ? '' : 'none';
+  if (sun) sun.style.display = showSun ? '' : 'none';
+  if (navy) navy.style.display = showNavy ? '' : 'none';
   const moonA = document.querySelector('.acc-theme-moon');
   const sunA = document.querySelector('.acc-theme-sun');
-  if (moonA && sunA) {
-    if (darkMode) { moonA.style.display = ''; sunA.style.display = 'none'; }
-    else { moonA.style.display = 'none'; sunA.style.display = ''; }
-  }
+  const navyA = document.querySelector('.acc-theme-navy');
+  if (moonA) moonA.style.display = showMoon ? '' : 'none';
+  if (sunA) sunA.style.display = showSun ? '' : 'none';
+  if (navyA) navyA.style.display = showNavy ? '' : 'none';
 }
 
 function syncTranslateBtns() {
   const on = !!settings.autoTranslate;
   document.getElementById('btn-translate')?.classList.toggle('active', on);
   document.getElementById('btn-translate-account')?.classList.toggle('active', on);
-}
-
-function toggleTheme() {
-  darkMode = !darkMode;
-  document.body.classList.toggle('light', !darkMode);
-  syncThemeBtn();
-  apiFetch('/settings', { method:'PATCH', body: { darkMode } }).catch(()=>{});
 }
 
 function isPopoutWindow() {
@@ -1666,10 +1734,15 @@ function buildPostCard(msg, colType, postIndex) {
   return `<div class="post-card" data-post-id="${escAttr(String(msg.id))}" data-ts="${msg.timestamp}" onclick="postCardClick(event,${clickArg})">
     <div class="post-header">
       ${buildAvatarHtml(handle, name, color, 34)}
-      <div class="post-info"><div class="post-name">${escHtml(name)}</div><div class="post-handle">${escHtml(handle)}</div></div>
-      <div class="post-time">${time}</div>
+      <div class="post-header-meta">
+        <div class="post-name-row">
+          <span class="post-name">${escHtml(name)}</span>
+          <span class="post-time">${time}</span>
+        </div>
+        <div class="post-handle">${escHtml(handle)}</div>
+      </div>
     </div>
-    ${textHtml}${mediaHtml}${statsHtml}
+    <div class="post-body">${textHtml}${mediaHtml}${statsHtml}</div>
   </div>`;
 }
 
