@@ -364,6 +364,39 @@ const state = {
     };
   },
 
+  /**
+   * Private lists (with owner) the viewer does not have access to yet — for browse/search.
+   * Does not expose account handles. Legacy open lists are omitted (already in GET /lists).
+   */
+  discoverConnectableLists(deckUserId, searchQuery) {
+    const q = String(searchQuery || '').trim().toLowerCase();
+    const max = 100;
+    const candidates = [];
+    for (const list of _state.lists) {
+      normalizeListInPlace(list);
+      if (!list.ownerId) continue;
+      if (list.ownerId === deckUserId) continue;
+      if (list.memberIds.includes(deckUserId)) continue;
+      const name = String(list.name || '');
+      if (q && !name.toLowerCase().includes(q)) continue;
+      const owner = _state.deckUsers[list.ownerId];
+      const blocked = list.blockedUserIds.includes(deckUserId);
+      const pending = list.pendingRequests.some((r) => r.userId === deckUserId);
+      const canRequest = !blocked && !pending;
+      candidates.push({
+        id: list.id,
+        name: list.name,
+        emoji: list.emoji || '',
+        ownerUsername: owner ? owner.username : list.ownerId,
+        canRequest,
+        pending,
+        blocked,
+      });
+    }
+    candidates.sort((a, b) => String(a.name).localeCompare(String(b.name), undefined, { sensitivity: 'base' }));
+    return candidates.slice(0, max);
+  },
+
   addListAccessRequest(listId, requesterId) {
     const list = _state.lists.find((l) => l.id === listId);
     if (!list) throw new Error('List not found');

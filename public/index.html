@@ -413,15 +413,24 @@
   <div class="panel">
     <button class="panel-close" onclick="closePanel('panel-lists')">✕</button>
     <h2>Lists</h2>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.45">Lists you create are yours only until you share the list ID and approve connect requests under <strong>Account</strong>.</p>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.45">Lists you create are yours only until you share the name or list ID; approve connect requests under <strong>Account</strong>.</p>
     <div id="list-access-outgoing-wrap" style="display:none;margin-bottom:12px">
       <div class="section-hdr" style="padding-top:0">Pending requests</div>
       <div id="list-access-outgoing" style="font-size:13px;color:var(--text2)"></div>
     </div>
-    <div class="field" style="margin-bottom:10px">
-      <label>Request access to a list</label>
+    <div class="field" style="margin-bottom:12px">
+      <label>Find lists to connect to</label>
+      <p style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.45">Private lists on this server you are not part of yet (name and owner only — no accounts shown). Leave the name empty and click Search to list up to 100, or type part of a name to filter.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <input id="inp-list-request-id" type="text" placeholder="List ID (e.g. l1730…)" style="flex:1;min-width:160px"/>
+        <input id="inp-list-discover-q" type="search" placeholder="List name…" style="flex:1;min-width:140px"/>
+        <button type="button" class="btn-primary" onclick="runListDiscover()">Search</button>
+      </div>
+      <div id="list-discover-results" style="margin-top:10px"></div>
+    </div>
+    <div class="field" style="margin-bottom:10px">
+      <label>Request by list ID</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="inp-list-request-id" type="text" placeholder="e.g. l1730…" style="flex:1;min-width:160px"/>
         <button type="button" class="btn-primary" onclick="submitListAccessRequest()">Request</button>
       </div>
       <p id="list-request-hint" style="font-size:11px;color:var(--text3);margin-top:6px;line-height:1.4"></p>
@@ -960,6 +969,13 @@ document.addEventListener('click', (e) => {
   if (listId && requesterId && action) respondListAccess(listId, requesterId, action);
 });
 
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('.list-discover-request');
+  if (!t || t.disabled) return;
+  const listId = t.getAttribute('data-ld-list');
+  if (listId) requestListAccessById(listId, t);
+});
+
 async function respondListAccess(listId, requesterId, action) {
   try {
     await apiFetch(`/lists/${encodeURIComponent(listId)}/access-respond`, { method: 'POST', body: { requesterId, action } });
@@ -971,6 +987,58 @@ async function respondListAccess(listId, requesterId, action) {
     renderAllColumns();
   } catch (err) {
     showToast(err.message || 'Error', true);
+  }
+}
+
+async function runListDiscover() {
+  const inp = document.getElementById('inp-list-discover-q');
+  const box = document.getElementById('list-discover-results');
+  if (!box) return;
+  const q = (inp && inp.value || '').trim();
+  box.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:8px 0">Loading…</div>';
+  try {
+    const data = await apiFetch('/lists/discover?q=' + encodeURIComponent(q));
+    const rows = data.results || [];
+    if (!rows.length) {
+      box.innerHTML = '<div class="empty-state" style="padding:14px 8px"><p style="font-size:13px">No matching private lists. Try another name, or you may already have access.</p></div>';
+      return;
+    }
+    box.innerHTML = rows.map((row) => {
+      const lid = escAttr(row.id);
+      const em = row.emoji ? `<span style="margin-right:6px">${escHtml(row.emoji)}</span>` : '';
+      let status = '';
+      let btn = '';
+      if (row.canRequest) {
+        btn = `<button type="button" class="btn-primary list-discover-request" style="padding:7px 12px;font-size:12px" data-ld-list="${lid}">Request access</button>`;
+      } else if (row.pending) {
+        status = '<span class="badge badge-blue" style="margin-left:8px">Pending</span>';
+      } else if (row.blocked) {
+        status = '<span class="badge" style="margin-left:8px;background:rgba(244,33,46,0.12);color:var(--danger)">Blocked</span>';
+      }
+      return `<div class="deck-col-item" style="margin-bottom:6px;align-items:center">
+        <div class="li-text" style="flex:1;min-width:0">
+          <div class="dci-label" style="white-space:normal">${em}<strong>${escHtml(row.name)}</strong>${status}</div>
+          <div class="li-sub" style="margin-top:2px">Owner: ${escHtml(row.ownerUsername)} · <span style="font-family:JetBrains Mono,monospace;font-size:10px">${escHtml(row.id)}</span></div>
+        </div>
+        ${btn || ''}
+      </div>`;
+    }).join('');
+  } catch (err) {
+    box.innerHTML = `<div style="font-size:12px;color:var(--danger);padding:8px 0">${escHtml(err.message || 'Error')}</div>`;
+  }
+}
+
+async function requestListAccessById(listId, btnEl) {
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = '…'; }
+  try {
+    await apiFetch('/lists/' + encodeURIComponent(listId) + '/access-request', { method: 'POST', body: {} });
+    showToast('Request sent');
+    await refreshMeListAccess();
+    await runListDiscover();
+    if (openDrawerPanelId === 'panel-lists') renderListsPanel();
+  } catch (err) {
+    showToast(err.message || 'Error', true);
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Request access'; }
   }
 }
 
@@ -993,7 +1061,10 @@ async function submitListAccessRequest() {
     if (hint) hint.textContent = 'Request sent. The owner can allow or block under Account.';
     if (inp) inp.value = '';
     await refreshMeListAccess();
-    if (openDrawerPanelId === 'panel-lists') renderListsPanel();
+    if (openDrawerPanelId === 'panel-lists') {
+      renderListsPanel();
+      runListDiscover();
+    }
   } catch (err) {
     if (hint) hint.textContent = err.message || 'Error';
   }
@@ -1140,9 +1211,10 @@ async function copyListId(id) {
 }
 
 function renderListsPanel() {
+  runListDiscover();
   const c = document.getElementById('lists-container');
   c.innerHTML = '';
-  if (!lists.length) { c.innerHTML='<div class="empty-state"><p>No lists yet. Create one below, or request access with a list ID.</p></div>'; return; }
+  if (!lists.length) { c.innerHTML='<div class="empty-state"><p>No lists yet. Create one below, or find a list above and request access.</p></div>'; return; }
   lists.forEach(list => {
     const inDeck = columns.some(col=>col.type==='list'&&col.ref===list.id);
     const role = listRoleLabel(list);

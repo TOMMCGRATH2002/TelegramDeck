@@ -412,6 +412,13 @@ router.get('/lists/lookup', requireDeckUser, (req, res) => {
   ok(res, { lookup: info });
 });
 
+router.get('/lists/discover', requireDeckUser, (req, res) => {
+  const q = req.query.q != null ? String(req.query.q) : '';
+  if (q.length > 120) return fail(res, 'Search query too long', 400);
+  const results = state.discoverConnectableLists(req.deckUserId, q);
+  ok(res, { results });
+});
+
 router.post('/lists', requireDeckUser, (req, res) => {
   const { name, emoji } = req.body;
   if (!name) return fail(res, 'name is required');
