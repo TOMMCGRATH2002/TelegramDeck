@@ -18,6 +18,8 @@ const DEFAULT_PROFILE_SETTINGS = {
   /** 'dark' | 'light' | 'navy' — darkMode kept in sync for older clients */
   colorTheme: 'dark',
   sidebarExpanded: false,
+  /** Merge Truth Social posts into the All Accounts column (server must have truthbrush + TRUTHSOCIAL_*). */
+  includeTruthInAll: false,
 };
 
 const DEFAULT_COLUMNS = [

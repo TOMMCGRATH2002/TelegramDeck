@@ -91,6 +91,11 @@ function buildCspConnectSrc() {
   return list;
 }
 
+const TRUTH_CSP_MEDIA = [
+  'https://truthsocial.com',
+  'https://*.truthsocial.com',
+];
+
 const enableCsp = process.env.TELEGRAMDECK_CSP !== '0';
 
 app.use(helmet({
@@ -101,7 +106,8 @@ app.use(helmet({
       scriptSrcAttr: ["'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       fontSrc: ["'self'", 'https://fonts.gstatic.com'],
-      imgSrc: ["'self'", 'data:', 'blob:'],
+      imgSrc: ["'self'", 'data:', 'blob:', ...TRUTH_CSP_MEDIA],
+      mediaSrc: ["'self'", 'blob:', ...TRUTH_CSP_MEDIA],
       connectSrc: buildCspConnectSrc(),
       baseUri: ["'none'"],
       frameAncestors: ["'none'"],

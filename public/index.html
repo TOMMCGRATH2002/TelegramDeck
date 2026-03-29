@@ -512,6 +512,17 @@
     <div id="deck-active-cols"></div>
     <div class="section-hdr" style="margin-top:8px">Add Column</div>
     <div class="dci-add-row" id="deck-add-row"></div>
+    <div class="section-hdr" style="margin-top:16px">Truth Social</div>
+    <p style="font-size:12px;color:var(--text2);line-height:1.45;margin-bottom:10px">Requires <code>truthbrush</code> and <code>TRUTHSOCIAL_*</code> in the server <code>.env</code>. Default account for “All” merge: <code>TRUTH_FEED_HANDLE</code>.</p>
+    <label class="field" style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:12px">
+      <input type="checkbox" id="chk-truth-in-all" onchange="toggleTruthInAll()"/>
+      <span style="font-size:13px">Include Truth posts in <strong>All Accounts</strong> column</span>
+    </label>
+    <div class="field" style="margin-bottom:10px">
+      <label>Truth handle (new column)</label>
+      <input id="inp-truth-handle" type="text" placeholder="realDonaldTrump" maxlength="100" autocomplete="off"/>
+    </div>
+    <button type="button" class="btn-primary" style="width:100%" onclick="addTruthColumnFromDeck()">Add Truth column</button>
   </div>
 </div>
 
@@ -637,7 +648,9 @@ const AVATAR_COLORS = ['#2aabee','#e86b5f','#3fb950','#e3b341','#a371f7','#ec7ab
 let columns         = [];
 let lists           = [];
 let following       = [];
-let settings        = { autoTranslate: false, darkMode: true, colorTheme: 'dark', sidebarExpanded: false };
+let settings        = { autoTranslate: false, darkMode: true, colorTheme: 'dark', sidebarExpanded: false, includeTruthInAll: false };
+let truthReady      = false;
+let truthDefaultHandle = 'realDonaldTrump';
 let colorTheme      = 'dark';
 let meProfile       = null;
 let dragColId       = null;
@@ -837,8 +850,18 @@ async function loadDeckStateForActiveProfile() {
     const s = await apiFetch('/settings');
     settings = s.settings;
   } catch (_) {
-    settings = { autoTranslate: false, darkMode: true, colorTheme: 'dark', sidebarExpanded: false };
+    settings = { autoTranslate: false, darkMode: true, colorTheme: 'dark', sidebarExpanded: false, includeTruthInAll: false };
   }
+  if (settings.includeTruthInAll == null) settings.includeTruthInAll = false;
+
+  try {
+    const sess = await apiFetch('/session');
+    truthReady = !!(sess.truthReady);
+    if (sess.truthDefaultHandle) {
+      const th = String(sess.truthDefaultHandle).replace(/^@/, '').trim();
+      if (th) truthDefaultHandle = th;
+    }
+  } catch (_) {}
 
   const allowedThemes = new Set(['dark', 'light', 'navy']);
   let ct = settings.colorTheme;
@@ -947,6 +970,21 @@ function startColumnPolling() {
   columnPollTimer = setInterval(() => { getColumnsForDisplay().forEach(pollNewInColumn); }, 45000);
 }
 
+function maxTruthPostIdInColumn(body) {
+  let max = null;
+  if (!body) return null;
+  body.querySelectorAll('.post-card[data-post-id^="truth-"]').forEach((el) => {
+    const raw = el.dataset.postId.slice('truth-'.length);
+    if (!raw) return;
+    try {
+      if (max == null || BigInt(raw) > BigInt(max)) max = raw;
+    } catch (_) {
+      if (max == null || raw > max) max = raw;
+    }
+  });
+  return max;
+}
+
 async function pollNewInColumn(col) {
   const body = document.getElementById('body-' + col.id);
   if (!body || body.querySelector('.loading-state, .empty-state')) return;
@@ -954,23 +992,52 @@ async function pollNewInColumn(col) {
   if (!top) return;
   const topTs = parseInt(top.dataset.ts, 10);
   const seen = new Set([...body.querySelectorAll('.post-card[data-post-id]')].map(el => el.dataset.postId));
-  const handles = getColumnHandles(col);
-  if (!handles.length) return;
   const translateParam = settings.autoTranslate ? '&translate=true' : '';
-  const sinceMs = topTs + 1;
-  let messages = [];
-  try {
-    if (handles.length === 1) {
-      const url = `/messages/${encodeURIComponent(handles[0].replace('@', ''))}?limit=30&since=${sinceMs}${translateParam}`;
-      messages = (await apiFetch(url)).messages;
-    } else {
-      const qs = handles.map(h => `handles[]=${encodeURIComponent(h)}`).join('&');
-      messages = (await apiFetch(`/messages/batch?${qs}&since=${sinceMs}${translateParam}`)).messages;
-    }
-  } catch (_) { return; }
-  const fresh = messages.filter(m => m.timestamp > topTs && !seen.has(String(m.id)));
-  fresh.sort((a, b) => b.timestamp - a.timestamp);
-  fresh.forEach(m => prependPost(col.id, m, col.type));
+
+  if (col.type === 'truth' && truthReady) {
+    const maxT = maxTruthPostIdInColumn(body);
+    if (maxT == null) return;
+    try {
+      const handle = col.ref || truthDefaultHandle;
+      const sinceMs = Date.now() - THREE_DAYS;
+      const d = await apiFetch(`/truth/feed?handle=${encodeURIComponent(handle)}&since=${sinceMs}&afterId=${encodeURIComponent(maxT)}`);
+      const fresh = (d.messages || []).filter(m => !seen.has('truth-' + String(m.id)));
+      fresh.sort((a, b) => b.timestamp - a.timestamp);
+      fresh.forEach(m => prependPost(col.id, m, col.type));
+    } catch (_) {}
+    return;
+  }
+
+  const handles = getColumnHandles(col);
+  const needTg = handles.length > 0;
+  if (needTg) {
+    const sinceMs = topTs + 1;
+    let messages = [];
+    try {
+      if (handles.length === 1) {
+        const url = `/messages/${encodeURIComponent(handles[0].replace('@', ''))}?limit=30&since=${sinceMs}${translateParam}`;
+        messages = (await apiFetch(url)).messages;
+      } else {
+        const qs = handles.map(h => `handles[]=${encodeURIComponent(h)}`).join('&');
+        messages = (await apiFetch(`/messages/batch?${qs}&since=${sinceMs}${translateParam}`)).messages;
+      }
+    } catch (_) { messages = []; }
+    const fresh = messages.filter(m => m.timestamp > topTs && !seen.has(String(m.id)));
+    fresh.sort((a, b) => b.timestamp - a.timestamp);
+    fresh.forEach(m => prependPost(col.id, m, col.type));
+  }
+
+  if (col.type === 'all' && settings.includeTruthInAll && truthReady) {
+    const maxT = maxTruthPostIdInColumn(body);
+    if (maxT == null) return;
+    try {
+      const sinceMs = Date.now() - THREE_DAYS;
+      const d = await apiFetch(`/truth/feed?handle=${encodeURIComponent(truthDefaultHandle)}&since=${sinceMs}&afterId=${encodeURIComponent(maxT)}`);
+      const fresh = (d.messages || []).filter(m => !seen.has('truth-' + String(m.id)));
+      fresh.sort((a, b) => b.timestamp - a.timestamp);
+      fresh.forEach(m => prependPost(col.id, m, col.type));
+    } catch (_) {}
+  }
 }
 
 function postCardClick(ev, url) {
@@ -1692,7 +1759,47 @@ async function toggleAccountColUI(handle, btn) {
 // ══════════════════════════════════════════════════════════
 //  DECK PANEL
 // ══════════════════════════════════════════════════════════
+async function toggleTruthInAll() {
+  const chk = document.getElementById('chk-truth-in-all');
+  settings.includeTruthInAll = !!(chk && chk.checked);
+  await apiFetch('/settings', { method: 'PATCH', body: { includeTruthInAll: settings.includeTruthInAll } }).catch(() => {});
+  renderAllColumns();
+}
+
+async function addTruthColumnFromDeck() {
+  const inp = document.getElementById('inp-truth-handle');
+  const raw = ((inp && inp.value) ? inp.value.trim() : '') || truthDefaultHandle;
+  const h = raw.replace(/^@/, '').trim();
+  if (!/^[a-zA-Z0-9_]{1,100}$/.test(h)) {
+    alert('Use letters, digits, and underscore only (Truth username).');
+    return;
+  }
+  if (!truthReady) {
+    alert('Truth Social is not configured on the server (.env + truthbrush).');
+    return;
+  }
+  if (columns.some(c => c.type === 'truth' && c.ref === h)) return;
+  const col = {
+    id: 'col-truth-' + h,
+    type: 'truth',
+    ref: h,
+    title: 'Truth @' + h,
+    icon: 'T',
+    iconBg: 'rgba(212,95,42,0.22)',
+  };
+  columns.push(col);
+  await apiFetch('/columns', { method: 'POST', body: col }).catch(() => {});
+  if (inp) inp.value = '';
+  renderAllColumns();
+  renderDeckPanel();
+}
+
 function renderDeckPanel() {
+  const chk = document.getElementById('chk-truth-in-all');
+  if (chk) chk.checked = !!settings.includeTruthInAll;
+  const inpTh = document.getElementById('inp-truth-handle');
+  if (inpTh) inpTh.placeholder = truthDefaultHandle;
+
   const active = document.getElementById('deck-active-cols');
   active.innerHTML = '';
   columns.forEach(col => {
@@ -1718,6 +1825,26 @@ function renderDeckPanel() {
     if (!columns.some(c=>c.type==='account'&&c.ref===h))
       opts.push({ label:info.name, action:()=>addDeckAccountUI(h) });
   });
+  if (truthReady && !columns.some(c => c.type === 'truth' && c.ref === truthDefaultHandle)) {
+    opts.push({
+      label: 'Truth @' + truthDefaultHandle,
+      action: () => {
+        const col = {
+          id: 'col-truth-' + truthDefaultHandle,
+          type: 'truth',
+          ref: truthDefaultHandle,
+          title: 'Truth @' + truthDefaultHandle,
+          icon: 'T',
+          iconBg: 'rgba(212,95,42,0.22)',
+        };
+        columns.push(col);
+        apiFetch('/columns', { method: 'POST', body: col }).then(() => {
+          renderAllColumns();
+          renderDeckPanel();
+        }).catch(() => {});
+      },
+    });
+  }
   if (!opts.length) { addRow.innerHTML='<span style="font-size:13px;color:var(--text3)">All columns are already active.</span>'; return; }
   opts.forEach(o => {
     const btn = document.createElement('div');
@@ -1801,13 +1928,48 @@ function buildColumnEl(col) {
   return div;
 }
 
+function cacheSendersFromMessages(messages) {
+  messages.forEach(m => {
+    if (m.sender?.handle) {
+      entityCache[m.sender.handle] = {
+        name: m.sender.name,
+        handle: m.sender.handle,
+        color: entityColor(m.sender.handle),
+        photoUrl: m.sender.photoUrl || null,
+      };
+    }
+  });
+}
+
 async function loadColumnMessages(col) {
   const body = document.getElementById('body-'+col.id);
   if (!body) return;
 
   try {
+    if (col.type === 'truth') {
+      if (!truthReady) {
+        body.innerHTML = `<div class="empty-state"><p style="font-size:13px;line-height:1.5">Truth Social is not configured on the server. Add <code>TRUTHSOCIAL_TOKEN</code> or username/password and <code>truthbrush</code> to the server environment, then restart.</p></div>`;
+        return;
+      }
+      const handle = col.ref || truthDefaultHandle;
+      const sinceMs = Date.now() - THREE_DAYS;
+      const d = await apiFetch(`/truth/feed?handle=${encodeURIComponent(handle)}&since=${sinceMs}`);
+      const messages = d.messages || [];
+      cacheSendersFromMessages(messages);
+      if (!messages.length) {
+        body.innerHTML = `<div class="empty-state"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><p>No Truth posts in the last 3 days.</p></div>`;
+        return;
+      }
+      body.innerHTML = messages.map((m, i) => buildPostCard(m, col.type, i)).join('');
+      observeVideos(body);
+      return;
+    }
+
     const handles = getColumnHandles(col);
-    if (!handles.length) {
+    const needTruth = col.type === 'all' && settings.includeTruthInAll && truthReady;
+    const needTg = handles.length > 0;
+
+    if (!needTg && !needTruth) {
       body.innerHTML = `<div class="empty-state"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><p>No accounts tracked in this column yet.</p></div>`;
       return;
     }
@@ -1816,27 +1978,27 @@ async function loadColumnMessages(col) {
     const translateParam = settings.autoTranslate ? '&translate=true' : '';
 
     let messages = [];
-    if (handles.length === 1) {
-      const url = `/messages/${encodeURIComponent(handles[0].replace('@',''))}?limit=40&since=${sinceMs}${translateParam}`;
-      const d = await apiFetch(url);
-      messages = d.messages;
-    } else {
-      const qs = handles.map(h=>`handles[]=${encodeURIComponent(h)}`).join('&');
-      const url = `/messages/batch?${qs}&since=${sinceMs}${translateParam}`;
-      const d = await apiFetch(url);
-      messages = d.messages;
-    }
-    // Cache entity names for display
-    messages.forEach(m => {
-      if (m.sender?.handle) {
-        entityCache[m.sender.handle] = {
-          name: m.sender.name,
-          handle: m.sender.handle,
-          color: entityColor(m.sender.handle),
-          photoUrl: m.sender.photoUrl || null,
-        };
+    if (needTg) {
+      if (handles.length === 1) {
+        const url = `/messages/${encodeURIComponent(handles[0].replace('@',''))}?limit=40&since=${sinceMs}${translateParam}`;
+        const d = await apiFetch(url);
+        messages = d.messages;
+      } else {
+        const qs = handles.map(h=>`handles[]=${encodeURIComponent(h)}`).join('&');
+        const url = `/messages/batch?${qs}&since=${sinceMs}${translateParam}`;
+        const d = await apiFetch(url);
+        messages = d.messages;
       }
-    });
+    }
+
+    if (needTruth) {
+      const td = await apiFetch(`/truth/feed?handle=${encodeURIComponent(truthDefaultHandle)}&since=${sinceMs}`);
+      const tm = td.messages || [];
+      messages = messages.concat(tm);
+      messages.sort((a, b) => b.timestamp - a.timestamp);
+    }
+
+    cacheSendersFromMessages(messages);
 
     if (!messages.length) {
       body.innerHTML = `<div class="empty-state"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><p>No posts in the last 3 days.</p></div>`;
@@ -1874,7 +2036,8 @@ function buildPostCard(msg, colType, postIndex) {
   if (sender.photoUrl && !entityCache[handle]?.photoUrl) {
     entityCache[handle] = { ...entityCache[handle], name, handle, color, photoUrl: sender.photoUrl };
   }
-  const tgUrl  = msg.url || `https://t.me/${handle.replace('@','')}`;
+  const openUrl = msg.url || `https://t.me/${handle.replace('@','')}`;
+  const domPostId = msg.source === 'truth' ? ('truth-' + String(msg.id)) : String(msg.id);
   const time   = formatTime(msg.timestamp);
 
   let mediaHtml = '';
@@ -1907,8 +2070,8 @@ function buildPostCard(msg, colType, postIndex) {
     ${msg.forwards!=null?`<div class="post-stat"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/></svg>${escHtml(String(msg.forwards))}</div>`:''}
   </div>` : '';
 
-  const clickArg = JSON.stringify(tgUrl);
-  return `<div class="post-card" data-post-id="${escAttr(String(msg.id))}" data-ts="${msg.timestamp}" onclick="postCardClick(event,${clickArg})">
+  const clickArg = JSON.stringify(openUrl);
+  return `<div class="post-card" data-post-id="${escAttr(domPostId)}" data-ts="${msg.timestamp}" onclick="postCardClick(event,${clickArg})">
     <div class="post-header">
       ${buildAvatarHtml(handle, name, color, 34)}
       <div class="post-header-meta">
@@ -2001,6 +2164,7 @@ function colHeaderTitle(col) {
     const l = lists.find(x => x.id === col.ref);
     if (l) return l.name;
   }
+  if (col.type === 'truth') return col.title || ('Truth @' + (col.ref || truthDefaultHandle));
   return col.title || '';
 }
 
@@ -2015,6 +2179,13 @@ function colHeaderIconParts(col) {
       iconBg: 'transparent',
       plainGrip: true,
       iconHtml: columnGripSvg(),
+    };
+  }
+  if (col.type === 'truth') {
+    return {
+      iconBg: col.iconBg || 'rgba(212,95,42,0.22)',
+      plainGrip: false,
+      iconHtml: '<span style="font-weight:700;font-size:12px">T</span>',
     };
   }
   if (col.type === 'list') {
@@ -2050,6 +2221,9 @@ function deckColTitle(col) {
 
 function deckColIconHtml(col) {
   const { iconHtml, iconBg } = colHeaderIconParts(col);
+  if (col.type === 'truth') {
+    return `<div class="dci-icon" style="background:${iconBg};font-weight:700;font-size:12px">T</div>`;
+  }
   if (col.type === 'account' && col.ref) {
     const h = col.ref;
     const info = entityCache[h] || {};

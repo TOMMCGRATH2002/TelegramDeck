@@ -22,6 +22,7 @@ const {
 } = require('./security');
 const mediaCache = require('./mediaCache');
 const { sendBufferWithRange } = require('./mediaResponse');
+const truth = require('./truthbrushBridge');
 
 const SESSION_DECK_USER_KEY = 'deckUserId';
 
@@ -115,11 +116,38 @@ router.use(apiLimiter);
 // ─── Session & deck users (per-browser deck; one Telegram session on server) ──
 
 router.get('/session', (req, res) => {
+  const defTruth = (process.env.TRUTH_FEED_HANDLE || 'realDonaldTrump').replace(/^@/, '').trim() || 'realDonaldTrump';
   ok(res, {
     deckUsers:         state.listDeckUsersPublic(),
     activeDeckUserId:  req.deckUserId || null,
     telegramReady:     state.isTelegramConfigured(),
+    truthReady:        truth.truthEnvConfigured(),
+    truthDefaultHandle: defTruth,
   });
+});
+
+router.get('/truth/feed', requireDeckUser, async (req, res) => {
+  if (!truth.truthEnvConfigured()) {
+    return fail(res, 'Truth Social is not configured on this server (set TRUTHSOCIAL_TOKEN or TRUTHSOCIAL_USERNAME and TRUTHSOCIAL_PASSWORD in .env).', 503);
+  }
+  const rawHandle = (req.query.handle != null ? String(req.query.handle) : '') || (process.env.TRUTH_FEED_HANDLE || 'realDonaldTrump');
+  const handle = truth.sanitizeHandle(rawHandle);
+  if (!truth.isValidTruthHandle(handle)) {
+    return fail(res, 'Invalid handle (letters, digits, underscore only).', 400);
+  }
+  const sinceParsed = req.query.since != null ? parseInt(req.query.since, 10) : NaN;
+  const sinceMs = Number.isFinite(sinceParsed) ? sinceParsed : Date.now() - truth.THREE_DAYS_MS;
+  const afterRaw = req.query.afterId != null ? String(req.query.afterId).trim() : '';
+  const afterId = afterRaw || null;
+  try {
+    let messages = await truth.fetchTruthFeed(handle, { sinceMs, afterId });
+    const autoTr = state.getSettings(req.deckUserId).autoTranslate === true;
+    await maybeTranslate(messages, autoTr);
+    ok(res, { messages, handle });
+  } catch (err) {
+    trace('GET /truth/feed ERR', { handle, error: err.message });
+    fail500(res, err);
+  }
 });
 
 router.post('/session/register', deckRegisterLimiter, (req, res) => {
