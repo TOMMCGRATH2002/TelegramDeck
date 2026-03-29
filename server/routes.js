@@ -142,10 +142,17 @@ router.get('/truth/feed', requireDeckUser, async (req, res) => {
   try {
     let messages = await truth.fetchTruthFeed(handle, { sinceMs, afterId });
     const autoTr = state.getSettings(req.deckUserId).autoTranslate === true;
-    await maybeTranslate(messages, autoTr);
+    try {
+      await maybeTranslate(messages, autoTr);
+    } catch (trErr) {
+      trace('GET /truth/feed translate skip', { error: trErr.message });
+    }
     ok(res, { messages, handle });
   } catch (err) {
     trace('GET /truth/feed ERR', { handle, error: err.message });
+    if (process.env.TELEGRAMDECK_TRUTH_ERRORS === '1') {
+      return fail(res, (err && err.message) ? String(err.message).slice(0, 800) : 'Truth feed failed', 502);
+    }
     fail500(res, err);
   }
 });

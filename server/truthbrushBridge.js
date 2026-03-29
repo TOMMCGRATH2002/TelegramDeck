@@ -76,7 +76,9 @@ function isValidTruthHandle(h) {
 
 function sanitizeHandle(h) {
   if (!h || typeof h !== 'string') return '';
-  return h.replace(/^@/, '').trim().split('/')[0];
+  const part = h.replace(/^@/, '').trim().split('/')[0];
+  /** Truth / Mastodon acct lookup is case-insensitive; wrong casing often breaks lookups. */
+  return part.toLowerCase();
 }
 
 function runTruthbrushStatuses(handle, { createdAfterIso }) {
