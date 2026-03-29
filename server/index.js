@@ -7,13 +7,13 @@
  *   3. Telegram MTProto connection
  */
 
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const express = require('express');
 const session = require('express-session');
 const cors    = require('cors');
 const helmet  = require('helmet');
 const http    = require('http');
-const path    = require('path');
 
 const tg       = require('./telegramClient');
 const routes   = require('./routes');

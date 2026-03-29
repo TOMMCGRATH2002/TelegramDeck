@@ -81,8 +81,16 @@ function sanitizeHandle(h) {
   return part.toLowerCase();
 }
 
+function resolveTruthbrushBin() {
+  let b = (process.env.TRUTHBRUSH_BIN || 'truthbrush').trim();
+  if ((b.startsWith('"') && b.endsWith('"')) || (b.startsWith("'") && b.endsWith("'"))) {
+    b = b.slice(1, -1).trim();
+  }
+  return b;
+}
+
 function runTruthbrushStatuses(handle, { createdAfterIso }) {
-  const bin = (process.env.TRUTHBRUSH_BIN || 'truthbrush').trim();
+  const bin = resolveTruthbrushBin();
   const args = ['statuses', handle, '--created-after', createdAfterIso];
 
   return new Promise((resolve, reject) => {
