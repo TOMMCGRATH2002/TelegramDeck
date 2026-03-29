@@ -1,17 +1,28 @@
-# TelegramDeck 1.0.0 — production image (Node 20)
-FROM node:20-alpine AS deps
+# TelegramDeck — Node + truthbrush (Python venv) for Truth Social columns
+# bookworm-slim: glibc + wheels for curl_cffi (truthbrush dependency)
+FROM node:20-bookworm-slim
 WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-venv \
+    build-essential \
+    python3-dev \
+  && rm -rf /var/lib/apt/lists/*
+
 COPY package.json package-lock.json ./
-# postinstall runs relax-gramjs-ping.js; must exist before npm ci
 COPY scripts ./scripts
 RUN npm ci --omit=dev
 
-FROM node:20-alpine
-WORKDIR /app
-ENV NODE_ENV=production
-COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN mkdir -p /app/data && chown -R node:node /app
-EXPOSE 3000
+
 USER node
+RUN python3 -m venv /app/.venv \
+  && /app/.venv/bin/pip install --no-cache-dir --upgrade pip \
+  && /app/.venv/bin/pip install --no-cache-dir truthbrush
+
+# Inside the container; override with .env only if you use a custom path
+ENV TRUTHBRUSH_BIN=/app/.venv/bin/truthbrush
+
+EXPOSE 3000
 CMD ["node", "server/index.js"]
