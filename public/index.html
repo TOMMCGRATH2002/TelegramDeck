@@ -178,11 +178,14 @@
   .col-icon .col-icon-fallback{position:relative;z-index:0;font-weight:700;font-size:12px;}
   .col-icon .col-icon-img:not(.col-icon-img--err)~.col-icon-fallback{opacity:0;}
   .col-icon-img--err{display:none!important;}
+  .col-icon .col-icon-img--truth{object-fit:cover;border-radius:8px;}
   .dci-icon-avatar{position:relative;overflow:hidden;padding:0;}
   .dci-icon-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
   .dci-icon-avatar .dci-fallback{position:relative;z-index:0;display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-weight:700;font-size:11px;}
   .dci-icon-avatar img:not(.dci-img--err)~.dci-fallback{opacity:0;}
   .dci-img--err{display:none!important;}
+  .dci-icon-truth-logo{padding:0!important;overflow:hidden;}
+  .dci-icon-truth-logo img{width:100%;height:100%;object-fit:cover;display:block;}
   .col-title-wrap{flex:1;min-width:0;}
   .col-title{font-weight:700;font-size:13px;letter-spacing:0.02em;text-transform:uppercase;color:var(--text2);}
   .col-subtitle{display:none;}
@@ -331,6 +334,13 @@
     .mobile-feed-tab.active::after{
       content:'';position:absolute;left:8px;right:8px;bottom:0;height:2px;
       background:var(--accent);border-radius:1px 1px 0 0;
+    }
+    .mobile-feed-tab--truth{
+      display:inline-flex;align-items:center;gap:6px;
+    }
+    .mobile-feed-tab-logo{
+      width:20px;height:20px;border-radius:6px;object-fit:cover;flex-shrink:0;
+      display:block;
     }
     .mobile-boot-splash{
       position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
@@ -639,6 +649,7 @@
 //  CONFIG
 // ══════════════════════════════════════════════════════════
 const API = '/api';
+const TRUTH_LOGO_URL = '/icons/truth-social.png';
 const THREE_DAYS = 3 * 24 * 60 * 60 * 1000;
 const AVATAR_COLORS = ['#2aabee','#e86b5f','#3fb950','#e3b341','#a371f7','#ec7ab5','#f7a041','#58a6ff'];
 
@@ -668,8 +679,12 @@ let profilesList    = []; // deck users from API { id, username }
 let activeProfileId = null; // active deck user id (session)
 let wsGen           = 0;
 let wsReconnectTimer = null;
-/** Narrow layout only: 'all' or a list id — which combined feed to show. */
+/** Narrow layout only: 'all' | 'truth' | list id — which combined feed to show. */
 let mobileFeedTab   = 'all';
+
+function truthMobileTabAvailable() {
+  return truthReady && (columns.some(c => c.type === 'truth') || settings.includeTruthInAll);
+}
 
 function isNarrowMobile() {
   return typeof window.matchMedia === 'function' && window.matchMedia('(max-width:900px)').matches;
@@ -677,7 +692,10 @@ function isNarrowMobile() {
 
 function getColumnsForDisplay() {
   if (isNarrowMobile()) {
-    if (mobileFeedTab !== 'all' && !lists.some((l) => l.id === mobileFeedTab)) {
+    if (mobileFeedTab === 'truth' && !truthMobileTabAvailable()) {
+      mobileFeedTab = 'all';
+    }
+    if (mobileFeedTab !== 'all' && mobileFeedTab !== 'truth' && !lists.some((l) => l.id === mobileFeedTab)) {
       mobileFeedTab = 'all';
     }
     if (mobileFeedTab === 'all') {
@@ -685,6 +703,26 @@ function getColumnsForDisplay() {
       if (allCol) return [allCol];
       const anyAll = columns.filter((c) => c.type === 'all');
       return anyAll.length ? [anyAll[0]] : columns.length ? [columns[0]] : [];
+    }
+    if (mobileFeedTab === 'truth') {
+      if (!truthReady) {
+        mobileFeedTab = 'all';
+        return getColumnsForDisplay();
+      }
+      const tc = columns.find(c => c.type === 'truth');
+      if (tc) return [tc];
+      if (settings.includeTruthInAll) {
+        return [{
+          id: 'col-mobile-truth',
+          type: 'truth',
+          ref: truthDefaultHandle,
+          title: 'Truth Social',
+          icon: '',
+          iconBg: 'transparent',
+        }];
+      }
+      mobileFeedTab = 'all';
+      return getColumnsForDisplay();
     }
     const list = lists.find((l) => l.id === mobileFeedTab);
     if (!list) {
@@ -706,9 +744,13 @@ function getColumnsForDisplay() {
 }
 
 function setMobileFeedTab(tab) {
-  mobileFeedTab = tab === 'all' ? 'all' : tab;
-  if (mobileFeedTab !== 'all' && !lists.some((l) => l.id === mobileFeedTab)) {
+  if (tab === 'all') {
     mobileFeedTab = 'all';
+  } else if (tab === 'truth') {
+    mobileFeedTab = truthMobileTabAvailable() ? 'truth' : 'all';
+  } else {
+    mobileFeedTab = tab;
+    if (!lists.some((l) => l.id === mobileFeedTab)) mobileFeedTab = 'all';
   }
   renderMobileFeedTabs();
   renderAllColumns();
@@ -721,12 +763,20 @@ function renderMobileFeedTabs() {
     el.innerHTML = '';
     return;
   }
-  if (mobileFeedTab !== 'all' && !lists.some((l) => l.id === mobileFeedTab)) {
+  if (mobileFeedTab !== 'all' && mobileFeedTab !== 'truth' && !lists.some((l) => l.id === mobileFeedTab)) {
+    mobileFeedTab = 'all';
+  }
+  if (mobileFeedTab === 'truth' && !truthMobileTabAvailable()) {
     mobileFeedTab = 'all';
   }
   const parts = [
     `<button type="button" role="tab" class="mobile-feed-tab${mobileFeedTab === 'all' ? ' active' : ''}" data-feed-tab="all" aria-selected="${mobileFeedTab === 'all'}">All accounts</button>`,
   ];
+  if (truthMobileTabAvailable()) {
+    const on = mobileFeedTab === 'truth';
+    const logoSrc = escAttr(TRUTH_LOGO_URL);
+    parts.push(`<button type="button" role="tab" class="mobile-feed-tab mobile-feed-tab--truth${on ? ' active' : ''}" data-feed-tab="truth" aria-label="Truth Social" aria-selected="${on}"><img class="mobile-feed-tab-logo" src="${logoSrc}" width="20" height="20" alt="" decoding="async" loading="lazy"/>Truth</button>`);
+  }
   lists.forEach((l) => {
     const on = mobileFeedTab === l.id;
     parts.push(`<button type="button" role="tab" class="mobile-feed-tab${on ? ' active' : ''}" data-feed-tab="${escAttr(l.id)}" aria-selected="${on}">${escHtml(l.name)}</button>`);
@@ -747,6 +797,9 @@ function bindLayoutMediaQuery() {
   const mq = window.matchMedia('(max-width:900px)');
   const onLayoutChange = () => {
     if (!isNarrowMobile() && mobileFeedTab !== 'all') {
+      mobileFeedTab = 'all';
+    }
+    if (isNarrowMobile() && mobileFeedTab === 'truth' && !truthMobileTabAvailable()) {
       mobileFeedTab = 'all';
     }
     renderAllColumns();
@@ -2182,10 +2235,11 @@ function colHeaderIconParts(col) {
     };
   }
   if (col.type === 'truth') {
+    const src = escAttr(TRUTH_LOGO_URL);
     return {
-      iconBg: col.iconBg || 'rgba(212,95,42,0.22)',
+      iconBg: 'transparent',
       plainGrip: false,
-      iconHtml: '<span style="font-weight:700;font-size:12px">T</span>',
+      iconHtml: `<img class="col-icon-img col-icon-img--truth" src="${src}" alt="" decoding="async" loading="lazy"/>`,
     };
   }
   if (col.type === 'list') {
@@ -2222,7 +2276,8 @@ function deckColTitle(col) {
 function deckColIconHtml(col) {
   const { iconHtml, iconBg } = colHeaderIconParts(col);
   if (col.type === 'truth') {
-    return `<div class="dci-icon" style="background:${iconBg};font-weight:700;font-size:12px">T</div>`;
+    const src = escAttr(TRUTH_LOGO_URL);
+    return `<div class="dci-icon dci-icon-truth-logo" style="background:transparent"><img src="${src}" alt="" decoding="async" loading="lazy"/></div>`;
   }
   if (col.type === 'account' && col.ref) {
     const h = col.ref;
