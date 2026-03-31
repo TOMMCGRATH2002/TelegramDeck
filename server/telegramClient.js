@@ -305,6 +305,93 @@ async function getEntityInfo(profileId, handle) {
   return serializeEntity(entity);
 }
 
+function entityFollowersCount(entity) {
+  if (!entity) return null;
+  // Channels / mega-groups often expose a participants count on the entity.
+  const v =
+    entity.participantsCount ??
+    entity.participants_count ??
+    entity.membersCount ??
+    entity.members_count ??
+    null;
+  const n = v != null ? parseInt(String(v), 10) : NaN;
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+async function maybeGetChannelFullFollowersCount(client, entity) {
+  try {
+    if (!entity) return null;
+    const cls = entity.className || '';
+    if (!cls.includes('Channel')) return entityFollowersCount(entity);
+    // Best-effort: some channel objects don't include participantsCount; fullChannel usually does.
+    const full = await client.invoke(new Api.channels.GetFullChannel({ channel: entity }));
+    const v = full && full.fullChat ? (full.fullChat.participantsCount ?? full.fullChat.participants_count ?? null) : null;
+    const n = v != null ? parseInt(String(v), 10) : NaN;
+    return Number.isFinite(n) && n >= 0 ? n : entityFollowersCount(entity);
+  } catch (_) {
+    return entityFollowersCount(entity);
+  }
+}
+
+async function searchEntities(profileId, query, limit = 20) {
+  const client = await ensureConnected(profileId);
+  const q = String(query || '').trim();
+  if (!q) return [];
+  const lim = Math.max(1, Math.min(parseInt(String(limit || 20), 10) || 20, 50));
+
+  // contacts.search returns users + chats matching the query.
+  const r = await client.invoke(new Api.contacts.Search({ q, limit: lim }));
+  const users = Array.isArray(r.users) ? r.users : [];
+  const chats = Array.isArray(r.chats) ? r.chats : [];
+
+  const rawEntities = [];
+  users.forEach((u) => rawEntities.push(u));
+  chats.forEach((c) => rawEntities.push(c));
+
+  // Keep only public usernames (we can resolve and fetch messages by @username).
+  const entities = rawEntities
+    .map((e) => serializeEntity(e))
+    .filter((s) => s && s.handle && s.handle.length > 1 && s.handle !== '@');
+
+  // Deduplicate by lowercase handle.
+  const seen = new Set();
+  const deduped = [];
+  for (const s of entities) {
+    const key = String(s.handle || '').toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(s);
+  }
+
+  // Enrich follower/subscriber counts for top results (best-effort; can be slow if abused).
+  const enriched = await Promise.all(deduped.slice(0, lim).map(async (s) => {
+    try {
+      const entity = await resolveEntity(client, s.handle);
+      const followers = await maybeGetChannelFullFollowersCount(client, entity);
+      return { ...s, followers };
+    } catch (_) {
+      return { ...s, followers: null };
+    }
+  }));
+
+  const ql = q.toLowerCase();
+  enriched.sort((a, b) => {
+    const fa = a.followers == null ? -1 : a.followers;
+    const fb = b.followers == null ? -1 : b.followers;
+    if (fb !== fa) return fb - fa;
+    const an = (a.name || '').toLowerCase();
+    const bn = (b.name || '').toLowerCase();
+    const ah = (a.handle || '').toLowerCase();
+    const bh = (b.handle || '').toLowerCase();
+    const as = (an.includes(ql) ? 1 : 0) + (ah.includes(ql) ? 1 : 0);
+    const bs = (bn.includes(ql) ? 1 : 0) + (bh.includes(ql) ? 1 : 0);
+    if (bs !== as) return bs - as;
+    return (an || ah).localeCompare(bn || bh);
+  });
+
+  return enriched.slice(0, lim);
+}
+
 async function getMe(profileId) {
   const client = await ensureConnected(profileId);
   const me = await client.getMe();
@@ -538,6 +625,7 @@ module.exports = {
   onLiveMessage,
   getMessages,
   getEntityInfo,
+  searchEntities,
   getMe,
   downloadMessageMedia,
   loadMessageMediaContext,

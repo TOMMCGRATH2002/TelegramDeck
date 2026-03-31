@@ -190,6 +190,7 @@ function ensureDeckUserShape(u) {
   return {
     id: u.id,
     username: u.username || 'user',
+    avatarDataUrl: (typeof u.avatarDataUrl === 'string' && u.avatarDataUrl.startsWith('data:image/')) ? u.avatarDataUrl : null,
     followingAccounts: Array.isArray(u.followingAccounts) ? u.followingAccounts : [],
     columns: Array.isArray(u.columns) && u.columns.length ? u.columns : [...DEFAULT_COLUMNS],
     settings: { ...DEFAULT_PROFILE_SETTINGS, ...(u.settings && typeof u.settings === 'object' ? u.settings : {}) },
@@ -232,6 +233,7 @@ const state = {
     return Object.values(_state.deckUsers).map(u => ({
       id: u.id,
       username: u.username || u.id,
+      hasAvatar: typeof u.avatarDataUrl === 'string' && u.avatarDataUrl.startsWith('data:image/'),
     }));
   },
 
@@ -249,12 +251,27 @@ const state = {
     _state.deckUsers[uid] = ensureDeckUserShape({
       id: uid,
       username: username || 'user',
+      avatarDataUrl: null,
       followingAccounts: [],
       columns: [...DEFAULT_COLUMNS],
       settings: { ...DEFAULT_PROFILE_SETTINGS },
     });
     save(_state);
     return uid;
+  },
+
+  setDeckUserAvatar(deckUserId, avatarDataUrl) {
+    const u = _state.deckUsers[deckUserId];
+    if (!u) throw new Error('User not found');
+    u.avatarDataUrl = avatarDataUrl || null;
+    save(_state);
+  },
+
+  clearDeckUserAvatar(deckUserId) {
+    const u = _state.deckUsers[deckUserId];
+    if (!u) throw new Error('User not found');
+    u.avatarDataUrl = null;
+    save(_state);
   },
 
   updateDeckUsername(deckUserId, username) {

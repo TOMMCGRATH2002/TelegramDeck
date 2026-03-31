@@ -126,6 +126,70 @@ router.get('/session', (req, res) => {
   });
 });
 
+// ─── Deck user avatar (per-deck-user) ─────────────────────────
+
+router.get('/deck-users/:id/avatar', requireDeckUser, async (req, res) => {
+  try {
+    const id = req.params.id;
+    if (!isValidDeckUserId(id)) return res.status(400).end();
+    // Avatars are public-per-server but only accessible after deck login (cookie).
+    const u = state.getDeckUser(id);
+    if (!u) return res.status(404).end();
+    if (!u.avatarDataUrl) return res.status(404).end();
+    const m = /^data:(image\/[a-zA-Z0-9.+-]+);base64,/.exec(u.avatarDataUrl);
+    if (!m) return res.status(404).end();
+    const mime = m[1];
+    const b64 = u.avatarDataUrl.slice(m[0].length);
+    const buf = Buffer.from(b64, 'base64');
+    res.setHeader('Content-Type', mime);
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    res.setHeader('Vary', 'Cookie');
+    res.status(200).send(buf);
+  } catch (_) {
+    res.status(404).end();
+  }
+});
+
+router.put('/deck-users/:id/avatar', requireDeckUser, async (req, res) => {
+  try {
+    const id = req.params.id;
+    if (!isValidDeckUserId(id)) return fail(res, 'Invalid deck user id', 400);
+    if (req.deckUserId !== id) return fail(res, 'You can only change your own avatar.', 403);
+    const raw = (req.body && req.body.avatarDataUrl) != null ? String(req.body.avatarDataUrl) : '';
+    const dataUrl = raw.trim();
+    if (!dataUrl) return fail(res, 'avatarDataUrl is required', 400);
+    if (!dataUrl.startsWith('data:image/')) return fail(res, 'avatarDataUrl must be a data:image/* URL', 400);
+    if (dataUrl.length > 600_000) return fail(res, 'Image too large (try a smaller square image)', 413);
+    // quick base64 validation
+    const m = /^data:(image\/[a-zA-Z0-9.+-]+);base64,/.exec(dataUrl);
+    if (!m) return fail(res, 'Invalid data URL', 400);
+    const mime = m[1];
+    if (!['image/png','image/jpeg','image/webp'].includes(mime)) {
+      return fail(res, 'Supported: png, jpeg, webp', 400);
+    }
+    const b64 = dataUrl.slice(m[0].length);
+    const buf = Buffer.from(b64, 'base64');
+    if (!buf || !buf.length) return fail(res, 'Invalid image', 400);
+    if (buf.length > 220_000) return fail(res, 'Image too large (max ~220KB)', 413);
+    state.setDeckUserAvatar(id, dataUrl);
+    ok(res, { id, hasAvatar: true });
+  } catch (err) {
+    fail(res, (err && err.message) ? err.message : 'Avatar upload failed', 500);
+  }
+});
+
+router.delete('/deck-users/:id/avatar', requireDeckUser, async (req, res) => {
+  try {
+    const id = req.params.id;
+    if (!isValidDeckUserId(id)) return fail(res, 'Invalid deck user id', 400);
+    if (req.deckUserId !== id) return fail(res, 'You can only change your own avatar.', 403);
+    state.clearDeckUserAvatar(id);
+    ok(res, { id, hasAvatar: false });
+  } catch (err) {
+    fail(res, (err && err.message) ? err.message : 'Avatar delete failed', 500);
+  }
+});
+
 router.get('/truth/feed', requireDeckUser, async (req, res) => {
   if (!truth.truthEnvConfigured()) {
     return fail(res, 'Truth Social is not configured on this server (set TRUTHSOCIAL_TOKEN or TRUTHSOCIAL_USERNAME and TRUTHSOCIAL_PASSWORD in .env).', 503);
@@ -247,6 +311,33 @@ router.get('/entity/:handle', requireDeckUser, async (req, res) => {
     ok(res, { entity: info });
   } catch (err) {
     fail(res, err.message);
+  }
+});
+
+// ─── Telegram search ─────────────────────────────────────────
+
+router.get('/search', requireDeckUser, async (req, res) => {
+  try {
+    const q = req.query.q != null ? String(req.query.q) : '';
+    const query = q.trim();
+    if (!query) return ok(res, { results: [] });
+    if (query.length > 80) return fail(res, 'Search query too long', 400);
+
+    await tg.ensureConnected(req.deckUserId);
+    const results = await tg.searchEntities(req.deckUserId, query, 20);
+
+    const following = new Set((state.getFollowing(req.deckUserId) || []).map((h) => String(h || '').toLowerCase()));
+    const out = (results || []).map((r) => {
+      const handle = (r.handle || '').toLowerCase();
+      return {
+        ...r,
+        following: handle ? following.has(handle) : false,
+      };
+    });
+
+    ok(res, { results: out });
+  } catch (err) {
+    fail(res, (err && err.message) ? err.message : 'Search failed', 500);
   }
 });
 
